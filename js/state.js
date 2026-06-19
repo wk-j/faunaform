@@ -13,6 +13,7 @@ export const state = {
   isFrozen: false,
   micSupported: true,
   helpOpen: false,
+  controlsVisible: false,
   lastFrame: performance.now(),
   phase: 0,
   signatures: [],

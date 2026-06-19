@@ -1,7 +1,7 @@
 // Composition root: canvas sizing, the animation loop, and bootstrap wiring.
 import { state } from "./state.js";
 import { canvases, micState, keyMic, levelReadout, peakReadout, centroidReadout } from "./dom.js";
-import { sampleAudio, measureSignal, drawIdle, stopMic } from "./audio.js";
+import { sampleAudio, measureSignal, drawIdle, stopMic, startMic } from "./audio.js";
 import { accumulateCapture, updateDiff } from "./signatures.js";
 import { drawSpectrum, drawWaveform, drawRadial, drawSignatures } from "./render.js";
 import { updateControlText, initControls } from "./controls.js";
@@ -65,9 +65,25 @@ function init() {
     levelReadout.textContent = "unsupported";
   }
 
+  // If a suspended audio context survives the auto-connect (e.g. some browsers
+  // require a gesture), resume it on the first interaction.
+  const resumeAudio = () => {
+    if (state.audioContext && state.audioContext.state === "suspended") {
+      state.audioContext.resume();
+    }
+  };
+  window.addEventListener("pointerdown", resumeAudio);
+  window.addEventListener("keydown", resumeAudio);
+
   updateControlText();
   resizeAll();
   state.rafId = requestAnimationFrame(render);
+
+  // Try to connect the microphone automatically. If permission is denied or a
+  // gesture is required, startMic() falls back to the idle view and M retries.
+  if (state.micSupported) {
+    startMic();
+  }
 }
 
 init();

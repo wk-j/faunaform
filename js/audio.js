@@ -21,6 +21,11 @@ export async function startMic() {
     state.analyser.smoothingTimeConstant = Number(smoothing.value);
     state.source = state.audioContext.createMediaStreamSource(state.stream);
     state.source.connect(state.analyser);
+    // A context created without a user gesture can start suspended, which
+    // freezes the analyser at zero; nudge it back to running.
+    if (state.audioContext.state === "suspended") {
+      state.audioContext.resume();
+    }
     state.frequencyData = new Uint8Array(state.analyser.frequencyBinCount);
     state.timeData = new Uint8Array(state.analyser.fftSize);
     state.isLive = true;

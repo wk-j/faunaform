@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app">
+  <div class="app controls-hidden" id="app">
     <header class="topbar">
       <div class="brand">
         <div class="mark" aria-hidden="true">
@@ -50,7 +50,7 @@
           <div class="empty-state" id="emptyState">
             <div>
               <strong>Microphone is off</strong>
-              <span>Press M to draw the live spectrum, waveform, and radial graph.</span>
+              <span>Allow microphone access when prompted, or press M to start the live graphs.</span>
             </div>
           </div>
         </div>
@@ -96,12 +96,22 @@
         <div><dt><kbd>Space</kbd></dt><dd>Freeze / unfreeze the view</dd></div>
         <div><dt><kbd>↑</kbd><kbd>↓</kbd></dt><dd>Sensitivity — hold <kbd>Shift</kbd> for big steps</dd></div>
         <div><dt><kbd>←</kbd><kbd>→</kbd></dt><dd>Smoothing — hold <kbd>Shift</kbd> for big steps</dd></div>
+        <div><dt><kbd>T</kbd></dt><dd>Show / hide the control bar</dd></div>
         <div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div>
         <div><dt><kbd>Esc</kbd></dt><dd>Close help</dd></div>
       </dl>
       <p class="help-foot">Tip: press <kbd>M</kbd> to begin, then <kbd>C</kbd> on each sound to compare.</p>
     </div>
   </div>
+
+  <button class="controls-toggle" id="controlsToggle" type="button" aria-label="Show or hide controls" aria-pressed="false" title="Show / hide controls (T)">
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <line x1="4" y1="8" x2="20" y2="8"/>
+      <line x1="4" y1="16" x2="20" y2="16"/>
+      <circle cx="10" cy="8" r="2.6" fill="var(--bg)"/>
+      <circle cx="15" cy="16" r="2.6" fill="var(--bg)"/>
+    </svg>
+  </button>
 
   <script type="module" src="js/main.js"></script>
 </body>

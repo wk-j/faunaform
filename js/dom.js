@@ -15,6 +15,8 @@ export const ctx = {
   signature: canvases.signature.getContext("2d")
 };
 
+export const app = byId("app");
+export const controlsToggle = byId("controlsToggle");
 export const keyMic = byId("keyMic");
 export const keyCapture = byId("keyCapture");
 export const keyFreeze = byId("keyFreeze");

@@ -1,6 +1,8 @@
 // Keyboard control scheme, sliders, and the help overlay.
 import { state } from "./state.js";
 import {
+  app,
+  controlsToggle,
   sensitivity,
   smoothing,
   sensitivityValue,
@@ -37,6 +39,14 @@ function toggleHelp(force) {
   helpOverlay.hidden = !state.helpOpen;
 }
 
+// Show or hide the top control bar; graphs fill the screen when it is hidden.
+function toggleControls(force) {
+  state.controlsVisible = typeof force === "boolean" ? force : !state.controlsVisible;
+  app.classList.toggle("controls-hidden", !state.controlsVisible);
+  controlsToggle.classList.toggle("on", state.controlsVisible);
+  controlsToggle.setAttribute("aria-pressed", String(state.controlsVisible));
+}
+
 function adjustRange(input, delta) {
   const min = parseFloat(input.min);
   const max = parseFloat(input.max);
@@ -60,6 +70,7 @@ export function initControls() {
       case "KeyC": startCapture(); break;
       case "KeyX": clearSignatures(); break;
       case "KeyH": toggleHelp(); break;
+      case "KeyT": toggleControls(); break;
       case "Space": toggleFreeze(); break;
       case "ArrowUp": adjustRange(sensitivity, big * 0.05); break;
       case "ArrowDown": adjustRange(sensitivity, -big * 0.05); break;
@@ -72,4 +83,5 @@ export function initControls() {
 
   sensitivity.addEventListener("input", updateControlText);
   smoothing.addEventListener("input", updateControlText);
+  controlsToggle.addEventListener("click", () => toggleControls());
 }
