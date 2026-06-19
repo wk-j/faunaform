@@ -1,0 +1,150 @@
+// Capturing, describing, and comparing sound signatures.
+import { state, SIG_BARS, CAPTURE_MS, SIG_COLORS, SIG_LABELS } from "./state.js";
+import { keyCapture, signatureEmpty, signatureLegend, diffReadout } from "./dom.js";
+
+// Reduce a full frequency spectrum to log-spaced bars, normalized to its own
+// peak so the *shape* of a sound is compared, not how loud it happened to be.
+export function spectrumToBars(spectrum, count) {
+  const bars = new Array(count).fill(0);
+  const usableBins = Math.floor(spectrum.length * 0.72);
+  let max = 1e-6;
+  for (let i = 0; i < count; i++) {
+    const start = Math.floor(Math.pow(i / count, 1.7) * usableBins);
+    const end = Math.max(start + 1, Math.floor(Math.pow((i + 1) / count, 1.7) * usableBins));
+    let sum = 0;
+    for (let j = start; j < end; j++) sum += spectrum[j] || 0;
+    const value = sum / (end - start) / 255;
+    bars[i] = value;
+    if (value > max) max = value;
+  }
+  for (let i = 0; i < count; i++) bars[i] /= max;
+  return bars;
+}
+
+// Compact acoustic descriptors that separate one animal's voice from another.
+export function spectrumFeatures(spectrum) {
+  const n = spectrum.length;
+  let total = 0;
+  let weighted = 0;
+  for (let i = 0; i < n; i++) {
+    const v = spectrum[i] / 255;
+    total += v;
+    weighted += v * i;
+  }
+  const centroid = total > 0 ? (weighted / total) / n : 0;
+
+  let cumulative = 0;
+  let rolloff = 0;
+  const target = total * 0.85;
+  for (let i = 0; i < n; i++) {
+    cumulative += spectrum[i] / 255;
+    if (cumulative >= target) { rolloff = i / n; break; }
+  }
+
+  const centroidBin = centroid * n;
+  let variance = 0;
+  for (let i = 0; i < n; i++) {
+    variance += (spectrum[i] / 255) * (i - centroidBin) * (i - centroidBin);
+  }
+  const bandwidth = total > 0 ? Math.sqrt(variance / total) / n : 0;
+
+  let logSum = 0;
+  let arithSum = 0;
+  const eps = 1e-6;
+  for (let i = 0; i < n; i++) {
+    const v = spectrum[i] / 255 + eps;
+    logSum += Math.log(v);
+    arithSum += v;
+  }
+  const flatness = Math.exp(logSum / n) / (arithSum / n);
+
+  return { centroid, rolloff, bandwidth, flatness };
+}
+
+export function accumulateCapture(now) {
+  const { captureAccum, frequencyData } = state;
+  for (let i = 0; i < captureAccum.length && i < frequencyData.length; i++) {
+    captureAccum[i] += frequencyData[i];
+  }
+  state.captureFrames++;
+  if (now - state.captureStart >= CAPTURE_MS) finalizeCapture();
+}
+
+export function startCapture() {
+  if (!state.isLive) {
+    flashDiff("start mic first");
+    return;
+  }
+  if (state.capturing) return;
+  state.capturing = true;
+  state.captureAccum = new Float32Array(state.frequencyData.length);
+  state.captureFrames = 0;
+  state.captureStart = performance.now();
+  keyCapture.classList.add("on");
+}
+
+export function finalizeCapture() {
+  state.capturing = false;
+  keyCapture.classList.remove("on");
+  if (state.captureFrames === 0) return;
+  const accum = state.captureAccum;
+  const avg = new Float32Array(accum.length);
+  for (let i = 0; i < avg.length; i++) avg[i] = accum[i] / state.captureFrames;
+  state.signatures.push({
+    label: "Sound " + SIG_LABELS[state.signatures.length % SIG_LABELS.length],
+    color: SIG_COLORS[state.signatures.length % SIG_COLORS.length],
+    bars: spectrumToBars(avg, SIG_BARS),
+    features: spectrumFeatures(avg)
+  });
+  signatureEmpty.classList.add("hidden");
+  renderLegend();
+  updateDiff();
+}
+
+export function clearSignatures() {
+  state.signatures = [];
+  signatureEmpty.classList.remove("hidden");
+  renderLegend();
+  updateDiff();
+}
+
+function barsDistance(a, b) {
+  let sum = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) sum += Math.abs(a[i] - b[i]);
+  return sum / n;
+}
+
+function flashDiff(message) {
+  diffReadout.textContent = message;
+  state.diffFlashUntil = performance.now() + 1400;
+}
+
+export function updateDiff() {
+  if (performance.now() < state.diffFlashUntil) return;
+  const sigs = state.signatures;
+  if (sigs.length === 0) {
+    diffReadout.textContent = "no captures";
+  } else if (sigs.length === 1) {
+    diffReadout.textContent = "1 capture";
+  } else {
+    const a = sigs[sigs.length - 2].bars;
+    const b = sigs[sigs.length - 1].bars;
+    diffReadout.textContent = `Δ last two ${Math.round(barsDistance(a, b) * 100)}%`;
+  }
+}
+
+function renderLegend() {
+  signatureLegend.innerHTML = "";
+  state.signatures.forEach((sig) => {
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    const chip = document.createElement("span");
+    chip.className = "legend-chip";
+    chip.style.background = sig.color;
+    const text = document.createElement("span");
+    text.innerHTML = `${sig.label} <span class="muted">· bright ${Math.round(sig.features.centroid * 100)}% · ${sig.features.flatness > 0.35 ? "noisy" : "tonal"}</span>`;
+    item.append(chip, text);
+    signatureLegend.appendChild(item);
+  });
+}
