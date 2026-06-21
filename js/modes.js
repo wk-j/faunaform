@@ -1,12 +1,14 @@
-// Graph-form modes for the 3D workspace. Mode 1 (Spectrum) is the only complete
-// form; modes 2-4 render a shared "in development" placeholder until their own
-// PRDs ship (see ADR 0002). `currentMode` lives on the shared `state` object so
-// it stays the single source of truth; this module owns the mode metadata and a
-// tiny subscribe hub so input (controls.js) and output (main.js) stay decoupled.
+// Graph-form modes for the 3D workspace. Modes 1-3 (Spectrum, Waveform, Radial)
+// are complete forms; mode 4 (Signatures) renders the "in development"
+// placeholder until its own PRD ships (see ADR 0002). `currentMode` lives on the
+// shared `state` object so it stays the single source of truth; this module owns
+// the mode metadata and a tiny subscribe hub so input (controls.js) and output
+// (main.js) stay decoupled.
 import { state } from "./state.js";
 
-// `key` matches the active-form key the renderer understands; "spectrum" is the
-// only real form, so the other three all resolve to the placeholder.
+// `key` matches the active-form key the renderer understands; "spectrum",
+// "waveform", and "radial" are real forms, so only "signatures" resolves to the
+// placeholder.
 export const MODES = [
   { id: 1, key: "spectrum", name: "Spectrum" },
   { id: 2, key: "waveform", name: "Waveform" },
