@@ -1,6 +1,6 @@
 // Three.js workspace: scene, camera, orbit controls, bloom, and the active
 // graph form. Forms are direct imports (no registry): only four modes are ever
-// planned and the placeholder is shared across modes 2-4, so a string-keyed
+// planned and the placeholder is shared across modes 3-4, so a string-keyed
 // registry would add indirection for no payoff.
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -9,12 +9,14 @@ import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { SIG_BARS } from "./state.js";
 import { createSpectrumForm } from "./render3d/spectrum.js";
+import { createWaveformForm } from "./render3d/waveform.js";
+import { createRadialForm } from "./render3d/radial.js";
 import { createPlaceholderForm } from "./render3d/placeholder.js";
 import { setCameraRotateImpl } from "./camera.js";
 
 const PALETTE = {
-  bg: 0x07090d,
-  grid: 0x283241
+  bg: 0xeaeef3,
+  grid: 0x6b7a8d
 };
 
 function seedPixelRatio() {
@@ -34,8 +36,8 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
   });
   renderer.setClearColor(PALETTE.bg, 1);
   renderer.setPixelRatio(seedPixelRatio());
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.02;
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.toneMappingExposure = 1.0;
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(PALETTE.bg, 0.038);
@@ -52,15 +54,19 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
   controls.target.set(0, 0.9, 0);
   controls.update();
 
-  const ambient = new THREE.AmbientLight(0x8c9aaa, 0.28);
+  const ambient = new THREE.AmbientLight(0x8c9aaa, 0.7);
   scene.add(ambient);
 
-  const keyLight = new THREE.DirectionalLight(0x50d6d0, 0.35);
+  const keyLight = new THREE.DirectionalLight(0x50d6d0, 0.85);
   keyLight.position.set(3, 5, 2);
   scene.add(keyLight);
 
+  const fillLight = new THREE.DirectionalLight(0xf4c45a, 0.35);
+  fillLight.position.set(-3, 2, 3);
+  scene.add(fillLight);
+
   const grid = new THREE.GridHelper(14, 28, PALETTE.grid, PALETTE.grid);
-  grid.material.opacity = 0.18;
+  grid.material.opacity = 0.35;
   grid.material.transparent = true;
   grid.position.y = -0.75;
   scene.add(grid);
@@ -80,15 +86,23 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
   const spectrum = createSpectrumForm({ barCount: SIG_BARS });
   scene.add(spectrum.mesh);
 
-  // Shared placeholder for modes 2-4; hidden until a non-spectrum mode is active.
+  // Shared placeholder for modes 3-4; hidden until a placeholder mode is active.
   const placeholder = createPlaceholderForm();
   placeholder.group.visible = false;
   scene.add(placeholder.group);
 
+  const waveform = createWaveformForm({ amplitude: 1.2 });
+  waveform.mesh.visible = false;
+  scene.add(waveform.mesh);
+
+  const radial = createRadialForm();
+  radial.mesh.visible = false;
+  scene.add(radial.mesh);
+
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  // Soft instrument glow: moderate strength, tighter radius, higher threshold.
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.38, 0.32, 0.28);
+  // Bloom disabled: it's a dark-scene effect that washes out a light background.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0, 0.32, 0.28);
   composer.addPass(bloom);
 
   let firstFrame = false;
@@ -121,12 +135,14 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
     camera.position.copy(controls.target).add(orbitOffset);
   });
 
-  // Swap the visible form. "spectrum" shows the live spectrum; any other key
-  // (waveform/radial/signatures) shows the shared placeholder. Camera and
-  // OrbitControls state are untouched, so the view is preserved across switches.
+  // Swap the visible form. Spectrum, waveform, and radial are live 3D forms; only
+  // signatures still shows the shared placeholder. Camera and OrbitControls state
+  // are untouched, so the view is preserved across switches.
   function setActiveForm(key) {
-    placeholderActive = key !== "spectrum";
-    spectrum.mesh.visible = !placeholderActive;
+    placeholderActive = key !== "spectrum" && key !== "waveform" && key !== "radial";
+    spectrum.mesh.visible = key === "spectrum";
+    waveform.mesh.visible = key === "waveform";
+    radial.mesh.visible = key === "radial";
     placeholder.group.visible = placeholderActive;
   }
 
@@ -142,6 +158,14 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
 
   function updateSpectrum(bars) {
     spectrum.update(bars);
+  }
+
+  function updateWaveform(samples) {
+    waveform.update(samples);
+  }
+
+  function updateRadial(bars) {
+    radial.update(bars);
   }
 
   function renderFrame() {
@@ -160,6 +184,8 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
 
   return {
     updateSpectrum,
+    updateWaveform,
+    updateRadial,
     setActiveForm,
     renderFrame,
     dispose() {
@@ -168,6 +194,8 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
       controls.dispose();
       spectrum.mesh.geometry.dispose();
       spectrum.mesh.material.dispose();
+      waveform.dispose();
+      radial.dispose();
       placeholder.dispose();
       composer.dispose();
       renderer.dispose();

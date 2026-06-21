@@ -23,6 +23,26 @@ export function barsFromSpectrum(data, count, gain) {
   return bars;
 }
 
+// Evenly-spaced time-domain waveform samples with sensitivity gain applied,
+// clamped to [-1, 1]. Signed — silence (all 128) yields all 0; positive/negative
+// deflection maps to the waveform line in the Waveform graph (mode 2).
+export function waveformFromTime(timeData, count, gain) {
+  const samples = [];
+  const n = timeData.length;
+  for (let i = 0; i < count; i++) {
+    const start = Math.floor((i / count) * n);
+    const end = Math.max(start + 1, Math.floor(((i + 1) / count) * n));
+    let sum = 0;
+    for (let j = start; j < end; j++) {
+      sum += timeData[j] || 0;
+    }
+    const avg = sum / (end - start);
+    const value = ((avg - 128) / 128) * gain;
+    samples.push(Math.max(-1, Math.min(1, value)));
+  }
+  return samples;
+}
+
 // Scalar signal descriptors. rms/peak come from the time-domain signal (centered
 // at 128), centroid from the frequency spectrum. Each result is in [0, 1].
 export function measureSignal(timeData, frequencyData, gain) {

@@ -9,6 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   barsFromSpectrum,
+  waveformFromTime,
   measureSignal,
   spectrumToBars,
   spectrumFeatures,
@@ -56,6 +57,7 @@ const emphasizedLows = new Uint8Array(BINS);
 for (let i = 0; i < BINS; i++) emphasizedLows[i] = Math.round((1 - i / (BINS - 1)) * 255);
 
 const inRange01 = (x) => x >= 0 && x <= 1;
+const inRangeSigned = (x) => x >= -1 && x <= 1;
 
 // --- barsFromSpectrum (core of audio.getBars) --------------------------------
 
@@ -81,6 +83,38 @@ test("barsFromSpectrum: more gain never lowers a bar (monotonic in gain)", () =>
   const low = barsFromSpectrum(whiteNoise, BAR_COUNT, 1);
   const high = barsFromSpectrum(whiteNoise, BAR_COUNT, 2);
   for (let i = 0; i < BAR_COUNT; i++) assert.ok(high[i] >= low[i]);
+});
+
+// --- waveformFromTime (core of Waveform graph, mode 2) -----------------------
+
+test("waveformFromTime: silence yields all-zero samples", () => {
+  const samples = waveformFromTime(timeSilence, BAR_COUNT, 1);
+  assert.equal(samples.length, BAR_COUNT);
+  assert.ok(samples.every((s) => s === 0), "every sample should be exactly 0");
+});
+
+test("waveformFromTime: output stays within [-1, 1] for any input/gain", () => {
+  for (const gain of [0.5, 1, 4, 100]) {
+    const samples = waveformFromTime(whiteNoise, BAR_COUNT, gain);
+    assert.ok(samples.every(inRangeSigned), `gain ${gain} produced out-of-range sample`);
+  }
+});
+
+test("waveformFromTime: positive and negative deflection map with correct sign", () => {
+  const positive = waveformFromTime(new Uint8Array(BINS).fill(255), BAR_COUNT, 1);
+  const negative = waveformFromTime(new Uint8Array(BINS).fill(0), BAR_COUNT, 1);
+  assert.ok(positive.every((s) => s > 0), "255 should yield positive samples");
+  assert.ok(negative.every((s) => s < 0), "0 should yield negative samples");
+  assert.ok(positive.every((s) => Math.abs(s - 127 / 128) < 1e-6));
+  assert.ok(negative.every((s) => Math.abs(s + 1) < 1e-6));
+});
+
+test("waveformFromTime: more gain never shrinks |sample| until clamp", () => {
+  const low = waveformFromTime(whiteNoise, BAR_COUNT, 1);
+  const high = waveformFromTime(whiteNoise, BAR_COUNT, 2);
+  for (let i = 0; i < BAR_COUNT; i++) {
+    assert.ok(Math.abs(high[i]) >= Math.abs(low[i]));
+  }
 });
 
 // --- measureSignal (core of audio.measureSignal) -----------------------------

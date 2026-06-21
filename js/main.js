@@ -2,9 +2,12 @@
 import { state, SIG_BARS } from "./state.js";
 import { sensitivity, micState, keyMic, levelReadout } from "./dom.js";
 import { sampleAudio, drawIdle, stopMic, startMic } from "./audio.js";
-import { barsFromSpectrum } from "./transforms.js";
+import { barsFromSpectrum, waveformFromTime } from "./transforms.js";
 import { initControls } from "./controls.js";
 import { getMode, onModeChange } from "./modes.js";
+
+// Keep this aligned with createWaveformForm's default pointCount.
+const WAVEFORM_POINTS = 128;
 
 const loadingOverlay = document.getElementById("loadingOverlay");
 const errorOverlay = document.getElementById("errorOverlay");
@@ -71,7 +74,7 @@ function ensureMicPrompt() {
   micPrompt.id = "micPrompt";
   micPrompt.className = "mic-prompt";
   micPrompt.innerHTML =
-    "<strong>Microphone is off</strong><span>Press <kbd>M</kbd> to begin the live spectrum.</span>";
+    "<strong>Microphone is off</strong><span>Press <kbd>M</kbd> to begin the live visualizer.</span>";
   workspace.appendChild(micPrompt);
   return micPrompt;
 }
@@ -79,9 +82,15 @@ function ensureMicPrompt() {
 function updateMicPrompt() {
   const prompt = ensureMicPrompt();
   if (!prompt) return;
-  // The mic prompt only makes sense over the live spectrum (mode 1); on the
-  // placeholder modes the spectrum isn't shown, so keep it hidden there.
-  prompt.classList.toggle("hidden", state.isLive || state.currentMode !== 1);
+  // The mic prompt only makes sense over live audio forms; on placeholder modes
+  // there is no live signal surface, so keep it hidden there.
+  prompt.classList.toggle(
+    "hidden",
+    state.isLive ||
+      (state.currentMode !== 1 &&
+        state.currentMode !== 2 &&
+        state.currentMode !== 3)
+  );
 }
 
 // HUD indicator + placeholder text share one injected stylesheet, mirroring the
@@ -184,7 +193,10 @@ function applyMode(mode) {
   if (placeholderOverlay) {
     const label = placeholderOverlay.querySelector(".placeholder-label");
     if (label) label.textContent = `${mode.name} — in development`;
-    placeholderOverlay.classList.toggle("hidden", mode.id === 1);
+    placeholderOverlay.classList.toggle(
+      "hidden",
+      mode.id === 1 || mode.id === 2 || mode.id === 3
+    );
   }
   updateMicPrompt();
 }
@@ -194,7 +206,7 @@ function render(now) {
 
   if (!state.isFrozen) {
     // Keep audio flowing in every mode so the mic stays live across switches;
-    // only the spectrum form consumes the bars, so feed it only on mode 1.
+    // feed only the currently active live form.
     if (!state.isLive) {
       drawIdle(now);
     } else {
@@ -208,6 +220,20 @@ function render(now) {
         Number(sensitivity.value)
       );
       render3d?.updateSpectrum(bars);
+    } else if (state.currentMode === 2) {
+      const samples = waveformFromTime(
+        state.timeData,
+        WAVEFORM_POINTS,
+        Number(sensitivity.value)
+      );
+      render3d?.updateWaveform(samples);
+    } else if (state.currentMode === 3) {
+      const bars = barsFromSpectrum(
+        state.frequencyData,
+        SIG_BARS,
+        Number(sensitivity.value)
+      );
+      render3d?.updateRadial(bars);
     }
   }
 

@@ -1,4 +1,4 @@
-// Live spectrum graph form: instanced light columns along the X axis.
+// Live radial energy form: spectrum columns bent into a circular equalizer.
 import * as THREE from "three";
 import { palette } from "../state.js";
 
@@ -23,19 +23,15 @@ function colorAtIndex(index, count) {
   return new THREE.Color(COLOR_STOPS[COLOR_STOPS.length - 1].hex);
 }
 
-export function createSpectrumForm({
+export function createRadialForm({
   barCount = 96,
-  span = 11,
+  radius = 2.6,
   floorY = -0.75,
-  maxHeight = 2.8
+  maxHeight = 2.4
 } = {}) {
   const geometry = new THREE.BoxGeometry(1, 1, 1);
   // Unlit material: instanceColor tints at full saturation so the bars read as
-  // vivid glowing columns regardless of scene lights. Bloom supplies the halo.
-  // vertexColors stays omitted for the same reason as before: the
-  // USE_INSTANCING_COLOR shader path multiplies instanceColor against a base of
-  // 1.0 on its own; enabling vertexColors would zero diffuse via the missing
-  // color attribute.
+  // vivid glowing columns regardless of scene lights.
   const material = new THREE.MeshBasicMaterial({
     color: 0xffffff
   });
@@ -43,13 +39,19 @@ export function createSpectrumForm({
   const mesh = new THREE.InstancedMesh(geometry, material, barCount);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
-  const gap = span / barCount;
-  const columnWidth = gap * 0.72;
-  const columnDepth = columnWidth * 1.05;
-  const startX = -span / 2 + gap / 2;
+  const circumference = Math.PI * 2 * radius;
+  const columnWidth = (circumference / barCount) * 0.6;
+  const columnDepth = columnWidth;
   const minHeight = 0.05;
+  const angles = new Float32Array(barCount);
+  const baseXs = new Float32Array(barCount);
+  const baseZs = new Float32Array(barCount);
 
   for (let i = 0; i < barCount; i++) {
+    const angle = (i / barCount) * Math.PI * 2;
+    angles[i] = angle;
+    baseXs[i] = radius * Math.cos(angle);
+    baseZs[i] = radius * Math.sin(angle);
     mesh.setColorAt(i, colorAtIndex(i, barCount));
   }
   mesh.instanceColor.needsUpdate = true;
@@ -60,7 +62,8 @@ export function createSpectrumForm({
     const n = Math.min(barCount, bars.length);
     for (let i = 0; i < n; i++) {
       const height = Math.max(minHeight, bars[i] * maxHeight);
-      dummy.position.set(startX + i * gap, floorY + height / 2, 0);
+      dummy.position.set(baseXs[i], floorY + height / 2, baseZs[i]);
+      dummy.rotation.y = angles[i];
       dummy.scale.set(columnWidth, height, columnDepth);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
@@ -68,5 +71,10 @@ export function createSpectrumForm({
     mesh.instanceMatrix.needsUpdate = true;
   }
 
-  return { mesh, update };
+  function dispose() {
+    mesh.geometry.dispose();
+    mesh.material.dispose();
+  }
+
+  return { mesh, update, dispose };
 }
