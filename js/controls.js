@@ -13,6 +13,8 @@ import {
 } from "./dom.js";
 import { startMic, stopMic } from "./audio.js";
 import { startCapture, clearSignatures } from "./signatures.js";
+import { setMode } from "./modes.js";
+import { rotateCamera } from "./camera.js";
 
 export function updateControlText() {
   sensitivityValue.value = `${Number(sensitivity.value).toFixed(2)}x`;
@@ -54,6 +56,14 @@ function adjustRange(input, delta) {
   updateControlText();
 }
 
+// Match OrbitControls mouse-drag angular speed: 2π × (pixel delta / height).
+function cameraRotateStep(shiftScale) {
+  const canvas = document.getElementById("workspaceCanvas");
+  const height = Math.max(1, canvas?.clientHeight || 600);
+  const pixels = 28 * shiftScale;
+  return (2 * Math.PI * pixels) / height;
+}
+
 export function initControls() {
   document.addEventListener("keydown", (event) => {
     if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
@@ -72,10 +82,18 @@ export function initControls() {
       case "KeyH": toggleHelp(); break;
       case "KeyT": toggleControls(); break;
       case "Space": toggleFreeze(); break;
-      case "ArrowUp": adjustRange(sensitivity, big * 0.05); break;
-      case "ArrowDown": adjustRange(sensitivity, -big * 0.05); break;
-      case "ArrowRight": adjustRange(smoothing, big * 0.01); break;
-      case "ArrowLeft": adjustRange(smoothing, -big * 0.01); break;
+      case "Digit1": case "Numpad1": setMode(1); break;
+      case "Digit2": case "Numpad2": setMode(2); break;
+      case "Digit3": case "Numpad3": setMode(3); break;
+      case "Digit4": case "Numpad4": setMode(4); break;
+      case "ArrowLeft": rotateCamera(cameraRotateStep(big), 0); break;
+      case "ArrowRight": rotateCamera(-cameraRotateStep(big), 0); break;
+      case "ArrowUp": rotateCamera(0, cameraRotateStep(big)); break;
+      case "ArrowDown": rotateCamera(0, -cameraRotateStep(big)); break;
+      case "BracketLeft": adjustRange(sensitivity, -big * 0.05); break;
+      case "BracketRight": adjustRange(sensitivity, big * 0.05); break;
+      case "Comma": adjustRange(smoothing, -big * 0.01); break;
+      case "Period": adjustRange(smoothing, big * 0.01); break;
       default: return;
     }
     event.preventDefault();

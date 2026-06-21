@@ -21,7 +21,8 @@ export const state = {
   captureAccum: null,
   captureFrames: 0,
   captureStart: 0,
-  diffFlashUntil: 0
+  diffFlashUntil: 0,
+  currentMode: 1
 };
 
 export const SIG_BARS = 96;

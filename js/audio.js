@@ -2,6 +2,7 @@
 import { state } from "./state.js";
 import { sensitivity, smoothing, micState, keyMic, liveDot, emptyState, levelReadout } from "./dom.js";
 import { finalizeCapture } from "./signatures.js";
+import { barsFromSpectrum, measureSignal as measureSignalPure } from "./transforms.js";
 
 export async function startMic() {
   try {
@@ -70,50 +71,11 @@ export function sampleAudio() {
 }
 
 export function getBars(count) {
-  const bars = [];
-  const gain = Number(sensitivity.value);
-  const data = state.frequencyData;
-  const usableBins = Math.floor(data.length * 0.72);
-  for (let i = 0; i < count; i++) {
-    const start = Math.floor(Math.pow(i / count, 1.7) * usableBins);
-    const end = Math.max(start + 1, Math.floor(Math.pow((i + 1) / count, 1.7) * usableBins));
-    let sum = 0;
-    for (let j = start; j < end; j++) {
-      sum += data[j] || 0;
-    }
-    const avg = sum / (end - start);
-    bars.push(Math.min(1, (avg / 255) * gain));
-  }
-  return bars;
+  return barsFromSpectrum(state.frequencyData, count, Number(sensitivity.value));
 }
 
 export function measureSignal() {
-  const { timeData, frequencyData } = state;
-  let sum = 0;
-  let peak = 0;
-  let weighted = 0;
-  let total = 0;
-
-  for (let i = 0; i < timeData.length; i++) {
-    const value = Math.abs((timeData[i] - 128) / 128);
-    sum += value * value;
-    peak = Math.max(peak, value);
-  }
-
-  for (let i = 0; i < frequencyData.length; i++) {
-    const value = frequencyData[i] / 255;
-    weighted += value * i;
-    total += value;
-  }
-
-  const gain = Number(sensitivity.value);
-  const rms = Math.sqrt(sum / timeData.length) * gain;
-  const centroid = total > 0 ? weighted / total / frequencyData.length : 0;
-  return {
-    rms: Math.min(1, rms),
-    peak: Math.min(1, peak * gain),
-    centroid
-  };
+  return measureSignalPure(state.timeData, state.frequencyData, Number(sensitivity.value));
 }
 
 // Gentle synthetic data so the graphs breathe while the mic is off.

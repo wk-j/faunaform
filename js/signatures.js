@@ -1,65 +1,12 @@
 // Capturing, describing, and comparing sound signatures.
 import { state, SIG_BARS, CAPTURE_MS, SIG_COLORS, SIG_LABELS } from "./state.js";
 import { keyCapture, signatureEmpty, signatureLegend, diffReadout } from "./dom.js";
+import { spectrumToBars, spectrumFeatures, barsDistance } from "./transforms.js";
 
-// Reduce a full frequency spectrum to log-spaced bars, normalized to its own
-// peak so the *shape* of a sound is compared, not how loud it happened to be.
-export function spectrumToBars(spectrum, count) {
-  const bars = new Array(count).fill(0);
-  const usableBins = Math.floor(spectrum.length * 0.72);
-  let max = 1e-6;
-  for (let i = 0; i < count; i++) {
-    const start = Math.floor(Math.pow(i / count, 1.7) * usableBins);
-    const end = Math.max(start + 1, Math.floor(Math.pow((i + 1) / count, 1.7) * usableBins));
-    let sum = 0;
-    for (let j = start; j < end; j++) sum += spectrum[j] || 0;
-    const value = sum / (end - start) / 255;
-    bars[i] = value;
-    if (value > max) max = value;
-  }
-  for (let i = 0; i < count; i++) bars[i] /= max;
-  return bars;
-}
-
-// Compact acoustic descriptors that separate one animal's voice from another.
-export function spectrumFeatures(spectrum) {
-  const n = spectrum.length;
-  let total = 0;
-  let weighted = 0;
-  for (let i = 0; i < n; i++) {
-    const v = spectrum[i] / 255;
-    total += v;
-    weighted += v * i;
-  }
-  const centroid = total > 0 ? (weighted / total) / n : 0;
-
-  let cumulative = 0;
-  let rolloff = 0;
-  const target = total * 0.85;
-  for (let i = 0; i < n; i++) {
-    cumulative += spectrum[i] / 255;
-    if (cumulative >= target) { rolloff = i / n; break; }
-  }
-
-  const centroidBin = centroid * n;
-  let variance = 0;
-  for (let i = 0; i < n; i++) {
-    variance += (spectrum[i] / 255) * (i - centroidBin) * (i - centroidBin);
-  }
-  const bandwidth = total > 0 ? Math.sqrt(variance / total) / n : 0;
-
-  let logSum = 0;
-  let arithSum = 0;
-  const eps = 1e-6;
-  for (let i = 0; i < n; i++) {
-    const v = spectrum[i] / 255 + eps;
-    logSum += Math.log(v);
-    arithSum += v;
-  }
-  const flatness = Math.exp(logSum / n) / (arithSum / n);
-
-  return { centroid, rolloff, bandwidth, flatness };
-}
+// The pure transforms live in transforms.js (DOM-free, unit-tested); re-export
+// the two that other rendering modules import from here so call sites are
+// unchanged.
+export { spectrumToBars, spectrumFeatures, barsDistance };
 
 export function accumulateCapture(now) {
   const { captureAccum, frequencyData } = state;
@@ -106,13 +53,6 @@ export function clearSignatures() {
   signatureEmpty.classList.remove("hidden");
   renderLegend();
   updateDiff();
-}
-
-function barsDistance(a, b) {
-  let sum = 0;
-  const n = Math.min(a.length, b.length);
-  for (let i = 0; i < n; i++) sum += Math.abs(a[i] - b[i]);
-  return sum / n;
 }
 
 function flashDiff(message) {

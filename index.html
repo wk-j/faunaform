@@ -5,6 +5,103 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Faunaform</title>
   <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <style>
+    .workspace.workspace-3d {
+      display: block;
+      position: relative;
+      min-height: 0;
+    }
+
+    .workspace.workspace-3d canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .status-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: grid;
+      place-items: center;
+      padding: 1.5rem;
+      background: rgba(4, 6, 9, .78);
+      backdrop-filter: blur(8px);
+      transition: opacity .25s ease, visibility .25s ease;
+    }
+
+    .status-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .status-overlay[hidden] {
+      display: none;
+    }
+
+    .status-card {
+      width: min(24rem, 100%);
+      border: 1px solid var(--line-strong);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(21, 27, 36, .98), rgba(13, 17, 23, .99));
+      box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
+      padding: 1.3rem 1.4rem;
+      text-align: center;
+    }
+
+    .status-card h2 {
+      margin: 0 0 .55rem;
+      font-size: 1.05rem;
+    }
+
+    .status-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: .9rem;
+      line-height: 1.45;
+    }
+
+    .status-card button {
+      margin-top: 1rem;
+      padding: .55rem 1rem;
+      border: 1px solid rgba(80, 214, 208, .7);
+      border-radius: 8px;
+      background: rgba(80, 214, 208, .12);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .status-card button:hover,
+    .status-card button:focus-visible {
+      border-color: var(--cyan);
+      outline: none;
+    }
+
+    .loading-pulse {
+      width: .72rem;
+      height: .72rem;
+      margin: 0 auto .85rem;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 18px rgba(80, 214, 208, .45);
+      animation: loading-pulse 1.1s ease-in-out infinite;
+    }
+
+    @keyframes loading-pulse {
+      0%, 100% { transform: scale(.85); opacity: .55; }
+      50% { transform: scale(1.15); opacity: 1; }
+    }
+  </style>
 </head>
 <body>
   <div class="app controls-hidden" id="app">
@@ -31,59 +128,36 @@
           <li id="keyFreeze"><kbd>Space</kbd><span id="freezeState">freeze</span></li>
         </ul>
         <label class="slider">
-          <span><kbd>↑↓</kbd> Sensitivity <output id="sensitivityValue">1.25x</output></span>
+          <span><kbd>[</kbd><kbd>]</kbd> Sensitivity <output id="sensitivityValue">1.25x</output></span>
           <input id="sensitivity" type="range" min="0.5" max="3" value="1.25" step="0.05" tabindex="-1">
         </label>
         <label class="slider">
-          <span><kbd>←→</kbd> Smoothing <output id="smoothingValue">0.78</output></span>
+          <span><kbd>,</kbd><kbd>.</kbd> Smoothing <output id="smoothingValue">0.78</output></span>
           <input id="smoothing" type="range" min="0" max="0.94" value="0.78" step="0.01" tabindex="-1">
         </label>
         <span class="hint"><kbd>?</kbd> keys</span>
       </div>
     </header>
 
-    <main class="workspace">
-      <section class="panel" aria-label="Spectrum">
-        <div class="canvas-wrap">
-          <canvas id="spectrumCanvas"></canvas>
-          <div class="readout"><span class="dot" id="liveDot"></span><span id="levelReadout">idle</span></div>
-          <div class="empty-state" id="emptyState">
-            <div>
-              <strong>Microphone is off</strong>
-              <span>Allow microphone access when prompted, or press M to start the live graphs.</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel" aria-label="Waveform">
-        <div class="canvas-wrap">
-          <canvas id="waveformCanvas"></canvas>
-          <div class="readout" id="peakReadout">peak 0.00</div>
-        </div>
-      </section>
-
-      <section class="panel hero" aria-label="Radial">
-        <div class="canvas-wrap">
-          <canvas id="radialCanvas"></canvas>
-          <div class="readout" id="centroidReadout">centroid 0%</div>
-        </div>
-      </section>
-
-      <section class="panel" aria-label="Signatures">
-        <div class="canvas-wrap">
-          <canvas id="signatureCanvas"></canvas>
-          <div class="readout" id="diffReadout">no captures</div>
-          <div class="legend" id="signatureLegend"></div>
-          <div class="empty-state" id="signatureEmpty">
-            <div>
-              <strong>No signatures yet</strong>
-              <span>Capture (C) one animal's sound, then another, to compare how their shapes differ.</span>
-            </div>
-          </div>
-        </div>
-      </section>
+    <main class="workspace workspace-3d" aria-label="3D workspace">
+      <canvas id="workspaceCanvas"></canvas>
     </main>
+
+    <!-- Hidden stubs keep dom.js (off-limits this slice) from throwing on import. -->
+    <div id="legacyDomStubs" hidden aria-hidden="true">
+      <canvas id="spectrumCanvas" width="1" height="1"></canvas>
+      <canvas id="waveformCanvas" width="1" height="1"></canvas>
+      <canvas id="radialCanvas" width="1" height="1"></canvas>
+      <canvas id="signatureCanvas" width="1" height="1"></canvas>
+      <span id="liveDot"></span>
+      <span id="levelReadout">idle</span>
+      <span id="peakReadout">peak 0.00</span>
+      <span id="centroidReadout">centroid 0%</span>
+      <span id="diffReadout">no captures</span>
+      <div id="emptyState"></div>
+      <div id="signatureEmpty"></div>
+      <div id="signatureLegend"></div>
+    </div>
   </div>
 
   <div class="help" id="helpOverlay" role="dialog" aria-modal="true" aria-label="Keyboard controls" hidden>
@@ -91,16 +165,34 @@
       <h2>Keyboard controls</h2>
       <dl>
         <div><dt><kbd>M</kbd></dt><dd>Start / stop microphone</dd></div>
-        <div><dt><kbd>C</kbd></dt><dd>Capture a signature from the current sound</dd></div>
+        <div><dt><kbd>C</kbd></dt><dd>Capture a signature (visualization deferred — captures will compare in a future update)</dd></div>
         <div><dt><kbd>X</kbd></dt><dd>Clear all signatures</dd></div>
         <div><dt><kbd>Space</kbd></dt><dd>Freeze / unfreeze the view</dd></div>
-        <div><dt><kbd>↑</kbd><kbd>↓</kbd></dt><dd>Sensitivity — hold <kbd>Shift</kbd> for big steps</dd></div>
-        <div><dt><kbd>←</kbd><kbd>→</kbd></dt><dd>Smoothing — hold <kbd>Shift</kbd> for big steps</dd></div>
+        <div><dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd></dt><dd>Switch graph form mode (spectrum / waveform / radial / signatures)</dd></div>
+        <div><dt><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd></dt><dd>Orbit camera — hold <kbd>Shift</kbd> for bigger steps</dd></div>
+        <div><dt><kbd>[</kbd><kbd>]</kbd></dt><dd>Sensitivity — hold <kbd>Shift</kbd> for big steps</dd></div>
+        <div><dt><kbd>,</kbd><kbd>.</kbd></dt><dd>Smoothing — hold <kbd>Shift</kbd> for big steps</dd></div>
         <div><dt><kbd>T</kbd></dt><dd>Show / hide the control bar</dd></div>
         <div><dt><kbd>?</kbd></dt><dd>Toggle this help</dd></div>
         <div><dt><kbd>Esc</kbd></dt><dd>Close help</dd></div>
       </dl>
-      <p class="help-foot">Tip: press <kbd>M</kbd> to begin, then <kbd>C</kbd> on each sound to compare.</p>
+      <p class="help-foot">Tip: press <kbd>M</kbd> to start, use the arrow keys to look around, then <kbd>C</kbd> on each sound to compare.</p>
+    </div>
+  </div>
+
+  <div class="status-overlay" id="loadingOverlay" aria-live="polite" aria-busy="true">
+    <div class="status-card">
+      <div class="loading-pulse" aria-hidden="true"></div>
+      <h2>Loading workspace</h2>
+      <p>Preparing the 3D field…</p>
+    </div>
+  </div>
+
+  <div class="status-overlay" id="errorOverlay" role="alertdialog" aria-modal="true" aria-label="Renderer error" hidden>
+    <div class="status-card">
+      <h2>Renderer unavailable</h2>
+      <p id="errorMessage">Could not load the 3D renderer.</p>
+      <button id="errorReload" type="button">Reload</button>
     </div>
   </div>
 
