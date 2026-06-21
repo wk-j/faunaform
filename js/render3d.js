@@ -13,8 +13,8 @@ import { createPlaceholderForm } from "./render3d/placeholder.js";
 import { setCameraRotateImpl } from "./camera.js";
 
 const PALETTE = {
-  bg: 0x07090d,
-  grid: 0x283241
+  bg: 0xeaeef3,
+  grid: 0x6b7a8d
 };
 
 function seedPixelRatio() {
@@ -34,8 +34,8 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
   });
   renderer.setClearColor(PALETTE.bg, 1);
   renderer.setPixelRatio(seedPixelRatio());
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.02;
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.toneMappingExposure = 1.0;
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(PALETTE.bg, 0.038);
@@ -52,15 +52,19 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
   controls.target.set(0, 0.9, 0);
   controls.update();
 
-  const ambient = new THREE.AmbientLight(0x8c9aaa, 0.28);
+  const ambient = new THREE.AmbientLight(0x8c9aaa, 0.7);
   scene.add(ambient);
 
-  const keyLight = new THREE.DirectionalLight(0x50d6d0, 0.35);
+  const keyLight = new THREE.DirectionalLight(0x50d6d0, 0.85);
   keyLight.position.set(3, 5, 2);
   scene.add(keyLight);
 
+  const fillLight = new THREE.DirectionalLight(0xf4c45a, 0.35);
+  fillLight.position.set(-3, 2, 3);
+  scene.add(fillLight);
+
   const grid = new THREE.GridHelper(14, 28, PALETTE.grid, PALETTE.grid);
-  grid.material.opacity = 0.18;
+  grid.material.opacity = 0.35;
   grid.material.transparent = true;
   grid.position.y = -0.75;
   scene.add(grid);
@@ -87,8 +91,8 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  // Soft instrument glow: moderate strength, tighter radius, higher threshold.
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.38, 0.32, 0.28);
+  // Bloom disabled: it's a dark-scene effect that washes out a light background.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0, 0.32, 0.28);
   composer.addPass(bloom);
 
   let firstFrame = false;

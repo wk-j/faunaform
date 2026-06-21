@@ -30,16 +30,14 @@ export function createSpectrumForm({
   maxHeight = 2.8
 } = {}) {
   const geometry = new THREE.BoxGeometry(1, 1, 1);
-  const material = new THREE.MeshStandardMaterial({
-    // White base so instanceColor (set via setColorAt) is the visible tint.
-    // vertexColors is omitted: USE_INSTANCING_COLOR has its own shader path in
-    // r160 (vColor starts at 1.0, then *= instanceColor). Enabling vertexColors
-    // without a geometry color attribute zeros diffuse via the vertex color attr.
-    color: 0xffffff,
-    metalness: 0.06,
-    roughness: 0.58,
-    emissive: 0x000000,
-    emissiveIntensity: 0
+  // Unlit material: instanceColor tints at full saturation so the bars read as
+  // vivid glowing columns regardless of scene lights. Bloom supplies the halo.
+  // vertexColors stays omitted for the same reason as before: the
+  // USE_INSTANCING_COLOR shader path multiplies instanceColor against a base of
+  // 1.0 on its own; enabling vertexColors would zero diffuse via the missing
+  // color attribute.
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xffffff
   });
 
   const mesh = new THREE.InstancedMesh(geometry, material, barCount);
