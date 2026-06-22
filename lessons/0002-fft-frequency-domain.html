@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บทที่ 2 · FFT แยกเสียงเป็นความถี่ — Faunaform</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<p class="course-tag">Faunaform · เรียนรู้เรื่องเสียง</p>
+<p class="lesson-no">บทเรียนที่ 0002 · ต่อจาก <a href="0001-sound-is-a-wave.html">บทที่ 1</a></p>
+<h1>เสียงจริงคือ <em>ส่วนผสม</em> ของคลื่นหลายความถี่ — FFT คือเครื่องแยกมัน</h1>
+
+<p>
+บทที่แล้วเราเห็น <strong>คลื่นเดียว</strong> (sine เส้นเดียว) ในแกนเวลา
+แต่เสียงจริง — เสียงนก เสียงพูด เสียงกบ — ไม่เคยเป็น sine เส้นเดียว
+มันคือ <strong>คลื่นหลายเส้นที่บวกซ้อนกันอยู่</strong>
+บทนี้ตอบว่า: แล้วเราจะ <em>แกะ</em> ส่วนผสมนั้นออกมาดูได้ยังไง — และนั่นคือที่มาของ
+<code>state.frequencyData</code> กับโหมด spectrum ทั้งหมด
+</p>
+
+<h2>1 · บวก sine สองสามเส้น = ได้รูปคลื่นซับซ้อน</h2>
+<p>
+ความจริงที่สวยงามของเสียง: <strong>คลื่นที่ซับซ้อนแค่ไหน ก็สร้างได้จากการบวก
+คลื่น sine ธรรมดาหลาย ๆ เส้นเข้าด้วยกัน</strong> แต่ละเส้นมีความถี่และแอมพลิจูดของตัวเอง
+</p>
+<p>
+ถ้ามองกลับด้าน — เสียงที่ไมค์รับมา (รูปคลื่นยุ่ง ๆ ในแกนเวลา) จริง ๆ แล้ว
+<em>ถอดกลับ</em> ออกมาเป็น “มีความถี่ไหนผสมอยู่บ้าง และแต่ละความถี่ดังเท่าไร” ได้
+เครื่องมือที่ทำงานนี้ชื่อ <strong>Fourier Transform</strong> และเวอร์ชันที่คอมพิวเตอร์ใช้คือ
+<strong>FFT</strong> (Fast Fourier Transform)
+</p>
+
+<div class="why">
+<span class="label">นี่คือสิ่งที่ <code>AnalyserNode</code> ทำให้คุณ</span>
+ใน <code>js/audio.js</code> บรรทัด <code>state.analyser.fftSize = 2048</code> สั่งให้เบราว์เซอร์
+รัน FFT บนคลื่นที่รับเข้ามา แล้ว <code>getByteFrequencyData(state.frequencyData)</code>
+ก็คือการ “ขอผลลัพธ์” ออกมา — <strong>มันคือคนละมุมมองของเสียงเดียวกันกับ <code>timeData</code></strong>
+</div>
+
+<h2>2 · สองมุมมองของเสียงเดียวกัน</h2>
+<table style="width:100%; border-collapse:collapse; margin:1rem 0; font-size:.95rem">
+<tr style="border-bottom:1px solid var(--rule)">
+  <th style="text-align:left; padding:.5rem 0">มุมมอง</th>
+  <th style="text-align:left">ตอบคำถาม</th>
+  <th style="text-align:left">ในโค้ด</th>
+</tr>
+<tr style="border-bottom:1px solid var(--rule)">
+  <td style="padding:.5rem 0"><strong>Time domain</strong><br>(waveform)</td>
+  <td>“ความดันอากาศเปลี่ยนยังไงตามเวลา?”</td>
+  <td><code>timeData</code><br><code>getByteTimeDomainData</code></td>
+</tr>
+<tr>
+  <td style="padding:.5rem 0"><strong>Frequency domain</strong><br>(spectrum)</td>
+  <td>“มีความถี่ไหนผสมอยู่ ดังเท่าไร?”</td>
+  <td><code>frequencyData</code><br><code>getByteFrequencyData</code></td>
+</tr>
+</table>
+<p>
+FFT คือสะพานที่พาเราจากมุมมองบนไปมุมมองล่าง คลื่นเดียวกัน เล่าคนละเรื่อง
+</p>
+
+<h2>3 · ลองเล่น: คุณเป็นคนผสมเสียงเอง</h2>
+<p>
+เลื่อนแอมพลิจูดของคลื่นสามเส้น (ความถี่ต่ำ–กลาง–สูง) แล้วดู:
+<strong>กราฟบน</strong> = รูปคลื่นรวมในแกนเวลา (สิ่งที่ <code>timeData</code> เห็น) ·
+<strong>กราฟล่าง</strong> = สเปกตรัม สามแท่ง คือความถี่ที่ผสมอยู่ (สิ่งที่ <code>frequencyData</code> เห็น)
+กด <strong>ฟังเสียง</strong> เพื่อได้ยินส่วนผสมนั้น
+</p>
+
+<div class="widget">
+  <canvas id="sumwave" width="720" height="180" aria-label="รูปคลื่นรวมในแกนเวลา"></canvas>
+  <p style="font-size:.8rem; color:var(--ink-soft); margin:.5rem 0 .2rem; font-family:var(--mono)">▲ TIME DOMAIN — รูปคลื่นรวม (timeData)</p>
+  <canvas id="spectrum" width="720" height="160" aria-label="สเปกตรัมสามแท่ง"></canvas>
+  <p style="font-size:.8rem; color:var(--ink-soft); margin:.5rem 0 .2rem; font-family:var(--mono)">▲ FREQUENCY DOMAIN — สเปกตรัม (frequencyData)</p>
+  <div class="controls">
+    <div class="control-row">
+      <label for="a1">ความถี่ต่ำ</label>
+      <input type="range" id="a1" min="0" max="100" value="80">
+      <span class="val" id="a1v">80</span>
+    </div>
+    <div class="control-row">
+      <label for="a2">ความถี่กลาง</label>
+      <input type="range" id="a2" min="0" max="100" value="0">
+      <span class="val" id="a2v">0</span>
+    </div>
+    <div class="control-row">
+      <label for="a3">ความถี่สูง</label>
+      <input type="range" id="a3" min="0" max="100" value="0">
+      <span class="val" id="a3v">0</span>
+    </div>
+    <div class="control-row">
+      <label>&nbsp;</label>
+      <button id="play">▶ ฟังเสียง</button>
+      <span></span>
+    </div>
+  </div>
+</div>
+
+<div class="try">
+<span class="label">ลองสังเกต</span>
+<strong>1.</strong> เริ่มจากเฉพาะ “ความถี่ต่ำ” — กราฟบนเป็น sine เรียบ ๆ กราฟล่างมีแท่งเดียว (ซ้ายสุด)
+<br><strong>2.</strong> ค่อย ๆ เพิ่ม “ความถี่สูง” — กราฟบน <em>ยุ่งขึ้น</em> แต่กราฟล่างแค่ขึ้นแท่งที่สอง! เสียงก็ “คม/แหลม” ขึ้น
+<br><strong>3.</strong> นี่คือแก่นของบทนี้: รูปคลื่นที่ตาดูยุ่งเหยิง พอผ่าน FFT กลับเล่าเรื่องง่าย ๆ ว่า “มีความถี่ไหนบ้าง”
+<br><strong>4.</strong> เสียงสัตว์ต่างชนิดจะมี “ลายแท่ง” ในกราฟล่างต่างกัน — นั่นแหละคือหัวใจของ <strong>signature</strong>
+</div>
+
+<h2>4 · แล้ว <code>fftSize</code> คืออะไร?</h2>
+<p>
+สเปกตรัมจริงของ Faunaform ไม่ได้มีแค่ 3 แท่ง — มันมีเป็นพัน
+จำนวนนั้นมาจาก <code>fftSize</code>:
+</p>
+<ul>
+<li><code>fftSize = 2048</code> → FFT คืน <strong>1024 แท่ง</strong> (ครึ่งหนึ่งเสมอ) นี่คือ <code>analyser.frequencyBinCount</code></li>
+<li>แต่ละแท่ง (เรียกว่า <strong>bin</strong>) คือ “ช่องความถี่” หนึ่งช่อง เก็บพลังงานของความถี่ย่านนั้น เป็นค่า 0–255</li>
+<li><strong>fftSize มาก</strong> = แท่งเยอะ = แยกความถี่ละเอียดขึ้น แต่ตอบสนองช้าลง (แลกกัน)</li>
+</ul>
+<p>
+ฟังก์ชัน <code>barsFromSpectrum()</code> ของคุณเอา bin จำนวนมากนี้มา “ยุบรวม” เป็นแท่งไม่กี่สิบแท่งที่วาดบนจอ
+</p>
+
+<h2>5 · เช็กความเข้าใจ</h2>
+<div class="quiz" id="quiz">
+  <h3>ตอบจากความจำ</h3>
+
+  <div class="q" data-correct="2">
+    <p>FFT ทำหน้าที่อะไร?</p>
+    <button class="opt">ทำให้เสียงดังขึ้นกว่าตอนรับเข้ามา</button>
+    <button class="opt">บันทึกเสียงเก็บไว้เป็นไฟล์ในเครื่อง</button>
+    <button class="opt">แยกคลื่นออกเป็นความถี่ที่ผสมกันอยู่</button>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="q" data-correct="1">
+    <p><code>frequencyData</code> ต่างจาก <code>timeData</code> ตรงไหน?</p>
+    <button class="opt">เป็นเสียงคนละไฟล์ที่ไม่เกี่ยวข้องกัน</button>
+    <button class="opt">เป็นเสียงเดียวกันแต่มองคนละมุมกัน</button>
+    <button class="opt">เป็นเสียงเดิมแต่ถูกทำให้ดังกว่าเก่า</button>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="q" data-correct="0">
+    <p>ถ้าเพิ่ม <code>fftSize</code> จาก 1024 เป็น 4096 จะได้อะไร?</p>
+    <button class="opt">แท่งความถี่ละเอียดขึ้น แต่ตอบสนองช้าลง</button>
+    <button class="opt">แท่งความถี่หยาบลง แต่ตอบสนองไวขึ้น</button>
+    <button class="opt">เสียงดังขึ้นชัด แต่ภาพกระตุกลงบ้าง</button>
+    <div class="feedback"></div>
+  </div>
+</div>
+
+<h2>6 · ลงมือกับโค้ดจริง</h2>
+<ol>
+<li>เปิด Faunaform เปิดไมค์ สลับไปโหมด <strong>spectrum</strong></li>
+<li><strong>ผิวปาก</strong> (เสียงแหลม) — สังเกตว่าแท่งพุ่งสูงไปทาง <em>ขวา</em> (ความถี่สูง)</li>
+<li><strong>ฮัมเสียงต่ำ</strong> ในลำคอ — แท่งพุ่งสูงไปทาง <em>ซ้าย</em> (ความถี่ต่ำ) แทน นี่คือ “ลายเสียง” ที่ต่างกัน!</li>
+<li>เปิด <code>js/audio.js</code> เปลี่ยน <code>state.analyser.fftSize = 2048</code> เป็น <code>256</code> รีโหลด — <strong>ทำนายก่อน</strong>: แท่งจะหยาบ/ใหญ่ขึ้น เพราะ bin น้อยลง (จาก 1024 เหลือ 128)</li>
+<li>ลอง <code>console.log(state.analyser.frequencyBinCount)</code> ยืนยันว่าได้ครึ่งหนึ่งของ <code>fftSize</code> จริง</li>
+<li>เปลี่ยนกลับเป็น 2048</li>
+</ol>
+
+<div class="ask-teacher">
+<strong>ถามผมได้ทุกเมื่อ</strong> — เช่น “ทำไม bin ถึงเป็นครึ่งหนึ่งของ fftSize?”,
+“ความถี่จริง (Hz) ของแต่ละ bin คือเท่าไร?”, หรือ “แล้ว <code>minDecibels</code> เกี่ยวอะไรตรงนี้?”
+อยากให้ลงลึกหรือช้าลงตรงไหน บอกได้เลย
+</div>
+
+<div class="lesson-footer">
+<p>
+📖 <strong>แหล่งอ่านต่อ (คุณภาพสูงสุด):</strong>
+<a href="https://jackschaedler.github.io/circles-sines-signals/dft_introduction.html" target="_blank">Seeing Circles, Sines, and Signals — The Fourier Transform</a>
+โดย Jack Schaedler — มีภาพเคลื่อนไหวให้เห็นการแยกความถี่แบบสด ๆ
+</p>
+<p>
+<strong>บทต่อไป (ตัวอย่าง):</strong> spectrogram — ถ้าสเปกตรัมคือ “ภาพนิ่ง” ของความถี่ ณ วินาทีเดียว
+แล้วเราจะเห็น “เสียงเปลี่ยนไปตามเวลา” ได้ยังไง และมันเกี่ยวกับการเก็บ <strong>signature</strong> ของสัตว์ยังไง
+</p>
+</div>
+
+<script>
+// ===== Widget: additive synthesis — time domain (sum) + frequency domain (bars) =====
+const sw = document.getElementById('sumwave'), swx = sw.getContext('2d');
+const sp = document.getElementById('spectrum'), spx = sp.getContext('2d');
+const sliders = ['a1', 'a2', 'a3'].map(id => document.getElementById(id));
+const vals = ['a1v', 'a2v', 'a3v'].map(id => document.getElementById(id));
+const cycles = [3, 7, 14]; // ความถี่สัมพัทธ์ของสามองค์ประกอบ (รอบต่อจอ)
+const colors = ['#1a6fb8', '#b8541a', '#3a9a6a'];
+
+function amps() { return sliders.map(s => +s.value); }
+
+function drawSum() {
+  const a = amps();
+  a.forEach((v, i) => vals[i].textContent = v);
+  const W = sw.width, H = sw.height, mid = H / 2;
+  swx.clearRect(0, 0, W, H);
+  // เส้นกลาง = เงียบ
+  swx.strokeStyle = '#d9cdb8'; swx.setLineDash([5, 5]);
+  swx.beginPath(); swx.moveTo(0, mid); swx.lineTo(W, mid); swx.stroke(); swx.setLineDash([]);
+  // รูปคลื่นรวม
+  const total = Math.max(1, a[0] + a[1] + a[2]);
+  swx.strokeStyle = '#2a2722'; swx.lineWidth = 2.5; swx.beginPath();
+  for (let x = 0; x <= W; x++) {
+    const t = x / W;
+    let y = 0;
+    for (let i = 0; i < 3; i++) y += a[i] * Math.sin(t * cycles[i] * 2 * Math.PI);
+    const py = mid - (y / total) * (mid - 14);
+    x === 0 ? swx.moveTo(x, py) : swx.lineTo(x, py);
+  }
+  swx.stroke();
+}
+
+function drawSpectrum() {
+  const a = amps();
+  const W = sp.width, H = sp.height;
+  spx.clearRect(0, 0, W, H);
+  // แกนล่าง
+  spx.strokeStyle = '#d9cdb8';
+  spx.beginPath(); spx.moveTo(0, H - 20); spx.lineTo(W, H - 20); spx.stroke();
+  const slot = W / 3;
+  const bw = slot * 0.4;
+  ['ต่ำ', 'กลาง', 'สูง'].forEach((label, i) => {
+    const h = (a[i] / 100) * (H - 40);
+    const x = slot * i + (slot - bw) / 2;
+    spx.fillStyle = colors[i];
+    spx.fillRect(x, H - 20 - h, bw, h);
+    spx.fillStyle = '#a89b86'; spx.font = '13px monospace';
+    spx.fillText(label, slot * i + slot / 2 - 12, H - 4);
+  });
+}
+
+function render() { drawSum(); drawSpectrum(); }
+sliders.forEach(s => s.addEventListener('input', render));
+render();
+
+// ===== ฟังเสียง: oscillator สามตัวบวกกัน =====
+let actx = null;
+document.getElementById('play').addEventListener('click', () => {
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === 'suspended') actx.resume();
+  const a = amps();
+  const baseHz = 196; // ~โน้ต G3
+  const now = actx.currentTime;
+  cycles.forEach((c, i) => {
+    if (a[i] === 0) return;
+    const osc = actx.createOscillator(), gain = actx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = baseHz * (c / cycles[0]); // อัตราส่วนความถี่เท่ากับในกราฟ
+    const vol = (a[i] / 100) * 0.22;
+    osc.connect(gain).connect(actx.destination);
+    gain.gain.setValueAtTime(vol, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.1);
+    osc.start(now); osc.stop(now + 1.15);
+  });
+});
+
+// ===== แบบทดสอบ =====
+const fb = ['ถูกต้อง!', 'ยังไม่ใช่ — ลองนึกถึงกราฟสองมุมมองในวิดเจ็ตด้านบน'];
+document.querySelectorAll('#quiz .q').forEach(q => {
+  const correct = +q.dataset.correct;
+  const opts = [...q.querySelectorAll('.opt')];
+  const f = q.querySelector('.feedback');
+  opts.forEach((opt, i) => opt.addEventListener('click', () => {
+    opts.forEach(o => o.classList.remove('correct', 'wrong'));
+    if (i === correct) { opt.classList.add('correct'); f.textContent = '✓ ' + fb[0]; }
+    else { opt.classList.add('wrong'); opts[correct].classList.add('correct'); f.textContent = '✗ ' + fb[1]; }
+  }));
+});
+</script>
+</body>
+</html>
