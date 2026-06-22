@@ -10,7 +10,6 @@
 // Vertices are unlit + vertex-colored to match the other forms; the relief and
 // the orbit camera carry the 3D, no per-frame normal recompute needed.
 import * as THREE from "three";
-import { palette } from "../state.js";
 
 // Reusable scratch so the hot loops allocate nothing.
 const _c = [0, 0, 0];
@@ -19,12 +18,16 @@ const _c = [0, 0, 0];
 // same space the other forms feed their vertex/instance colors. Quiet sits near
 // the light workspace (a pale ridge that stays out of the way); louder climbs
 // the brand gradient to a vivid rose peak.
+// Deeper, more saturated than the pastel bar palette so the surface reads rich
+// (not washed out) on the light workspace: faint signal is already a solid
+// teal, and peaks drive through green/amber/red into a deep magenta.
 const STOPS = [
-  { t: 0.0, c: new THREE.Color(0xe2e7ee).toArray() },
-  { t: 0.22, c: new THREE.Color(palette.cyan).toArray() },
-  { t: 0.48, c: new THREE.Color(palette.lime).toArray() },
-  { t: 0.72, c: new THREE.Color(palette.amber).toArray() },
-  { t: 1.0, c: new THREE.Color(palette.rose).toArray() }
+  { t: 0.0, c: new THREE.Color(0xbfd0db).toArray() }, // pale base (mostly alpha-clipped)
+  { t: 0.16, c: new THREE.Color(0x149aa8).toArray() }, // deep teal
+  { t: 0.4, c: new THREE.Color(0x1f9d52).toArray() }, // green
+  { t: 0.62, c: new THREE.Color(0xe08a12).toArray() }, // amber
+  { t: 0.82, c: new THREE.Color(0xd62f3f).toArray() }, // red
+  { t: 1.0, c: new THREE.Color(0x7a1560).toArray() } // deep magenta
 ];
 
 // Write the linear color for loudness `t` into out[0..2].
@@ -105,7 +108,10 @@ export function createSpectrogramForm({
     vertexColors: true,
     side: THREE.DoubleSide,
     transparent: true,
-    alphaTest: 0.35
+    alphaTest: 0.35,
+    // No fog: distant (older) rows would otherwise wash toward the light
+    // background and the colors would read as pale.
+    fog: false
   });
 
   const mesh = new THREE.Mesh(geometry, material);
