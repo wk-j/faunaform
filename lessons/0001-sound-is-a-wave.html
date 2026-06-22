@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บทที่ 1 · เสียงคือคลื่น — Faunaform</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<p class="course-tag">Faunaform · เรียนรู้เรื่องเสียง</p>
+<p class="lesson-no">บทเรียนที่ 0001</p>
+<h1>เสียงคือคลื่น แล้ว <code>timeData</code> ในโค้ดของคุณก็คือคลื่นนั้น</h1>
+
+<p>
+ในโปรเจกต์ของคุณ โหมด <strong>waveform</strong> วาดเส้นหยึกหยักวิ่งตามไมโครโฟน
+บทนี้จะตอบคำถามเดียว แต่เป็นรากของทุกอย่าง:
+<strong>เส้นนั้นคืออะไรกันแน่?</strong> เมื่อจบบทนี้ คุณจะอ่านอาเรย์
+<code>state.timeData</code> ออกว่ามันเล่าเรื่องอะไรเกี่ยวกับอากาศรอบ ๆ ไมค์
+</p>
+
+<h2>1 · เสียง = อากาศที่ถูกผลักไปมา</h2>
+<p>
+เวลามีอะไรสั่น (สายเสียงนก, ลำโพง, ปีกแมลง) มันผลักโมเลกุลอากาศข้าง ๆ ให้
+<strong>อัดเข้า</strong> แล้ว <strong>คลายออก</strong> สลับกันไปเรื่อย ๆ คลื่นความดันนี้
+เดินทางมาถึงไมโครโฟน ไมค์วัด “ความดันอากาศ ณ ขณะนั้น” ออกมาเป็นตัวเลข
+หลายพันครั้งต่อวินาที
+</p>
+<p>
+ถ้าเราเอาตัวเลขเหล่านั้นมาเรียงตามเวลา แล้ววาดเป็นกราฟ — นั่นแหละ
+<strong>waveform</strong> (รูปคลื่นในแกนเวลา หรือ <em>time domain</em>)
+แกนนอน = เวลา, แกนตั้ง = ความดันอากาศ
+</p>
+
+<div class="why">
+<span class="label">ทำไมต้องรู้</span>
+Faunaform ดึงข้อมูลนี้ด้วย <code>analyser.getByteTimeDomainData(state.timeData)</code>
+ค่าที่ได้คือ “ความดันอากาศตามเวลา” ตรง ๆ — ยังไม่ผ่านการแปลงอะไรเลย
+มันคือวัตถุดิบที่ดิบที่สุดที่คุณมี
+</div>
+
+<h2>2 · จุดเงียบอยู่ตรงกลาง ไม่ใช่ที่ศูนย์</h2>
+<p>
+<code>getByteTimeDomainData</code> ให้ค่าเป็นไบต์ คือจำนวนเต็ม
+<strong>0 ถึง 255</strong> และนี่คือกุญแจที่หลายคนพลาด:
+</p>
+<ul>
+<li><strong>128</strong> = ตรงกลาง = อากาศนิ่งสนิท = <strong>เงียบ</strong></li>
+<li>ค่าวิ่งขึ้นไป <strong>255</strong> = อากาศถูกอัดแน่น (ยอดคลื่น)</li>
+<li>ค่าวิ่งลงมา <strong>0</strong> = อากาศเบาบาง (ท้องคลื่น)</li>
+</ul>
+<p>
+เสียงยิ่งดัง คลื่นยิ่งเหวี่ยงห่างจาก 128 มาก — ระยะเหวี่ยงนี้เรียกว่า
+<strong>แอมพลิจูด (amplitude)</strong> นี่คือสิ่งที่หูเราตีความว่า “ความดัง”
+</p>
+
+<div class="note">
+<span class="label">โค้ดของคุณพูดเรื่องนี้อยู่แล้ว</span>
+ฟังก์ชัน <code>drawIdle()</code> ใน <code>js/audio.js</code> ปลอมคลื่นนิ่ง ๆ ตอนปิดไมค์ไว้ว่า:
+<pre><code>timeData[i] = 128 + Math.sin(now * 0.0018 + i * 0.035) * 4;</code></pre>
+อ่านมันใหม่ด้วยสายตาที่เพิ่งได้:
+<strong>128</strong> = จุดเงียบตรงกลาง ·
+<strong>× 4</strong> = แอมพลิจูด (เหวี่ยงนิดเดียว เลยดู “นิ่ง”) ·
+<strong>i * 0.035</strong> = ความถี่ (คลื่นกระเพื่อมถี่แค่ไหนตลอดอาเรย์)
+</div>
+
+<h2>3 · ลองเล่น: ปรับคลื่น แล้วฟังมันด้วย</h2>
+<p>
+เลื่อนสองปุ่มข้างล่าง สังเกตเส้นคลื่น แล้วกด <strong>เล่นเสียง</strong> เพื่อ
+<em>ได้ยิน</em> ว่าแต่ละปุ่มเปลี่ยนอะไร เส้นประตรงกลางคือค่า 128 (เงียบ)
+</p>
+
+<div class="widget">
+  <canvas id="wave" width="720" height="240" aria-label="กราฟคลื่นเสียง"></canvas>
+  <div class="controls">
+    <div class="control-row">
+      <label for="amp">แอมพลิจูด</label>
+      <input type="range" id="amp" min="0" max="120" value="60">
+      <span class="val" id="ampv">60</span>
+    </div>
+    <div class="control-row">
+      <label for="freq">ความถี่</label>
+      <input type="range" id="freq" min="1" max="24" value="4">
+      <span class="val" id="freqv">4</span>
+    </div>
+    <div class="control-row">
+      <label>&nbsp;</label>
+      <button id="play">▶ เล่นเสียง</button>
+      <span></span>
+    </div>
+  </div>
+</div>
+
+<div class="try">
+<span class="label">ลองสังเกต</span>
+<strong>1.</strong> ลากแอมพลิจูดไปสุดซ้าย (0) — เส้นแบนราบทับเส้น 128 พอดี = เงียบสนิท
+<br><strong>2.</strong> เพิ่มแอมพลิจูด แล้วกดเล่นเสียง — คลื่นสูงขึ้น และเสียง <em>ดัง</em> ขึ้น
+<br><strong>3.</strong> เพิ่มความถี่ — คลื่นถี่ขึ้น และเสียง <em>แหลม/สูง</em> ขึ้น (ไม่ใช่ดังขึ้น!)
+<br>นี่คือบทเรียนสำคัญ: <strong>แอมพลิจูด = ความดัง</strong>, <strong>ความถี่ = ความสูงต่ำของเสียง</strong> — คนละแกนกัน
+</div>
+
+<h2>4 · เช็กความเข้าใจ</h2>
+<div class="quiz" id="quiz">
+  <h3>ตอบจากความจำ อย่าเพิ่งเลื่อนขึ้นไปดู</h3>
+
+  <div class="q" data-correct="0">
+    <p>ในอาเรย์ <code>timeData</code> ค่า 128 หมายถึงอะไร?</p>
+    <button class="opt">จุดกึ่งกลาง คืออากาศนิ่ง คือเงียบ</button>
+    <button class="opt">จุดบนสุด คืออากาศอัดแน่น ดัง</button>
+    <button class="opt">จุดล่างสุด คืออากาศเบาบาง ดัง</button>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="q" data-correct="1">
+    <p>ถ้า <strong>เพิ่มแอมพลิจูด</strong> ของคลื่น หูเราจะได้ยินว่า…</p>
+    <button class="opt">เสียงแหลมสูงขึ้นกว่าเดิมชัด</button>
+    <button class="opt">เสียงดังแรงขึ้นกว่าเดิมชัด</button>
+    <button class="opt">เสียงลากยาวนานขึ้นกว่าเดิม</button>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="q" data-correct="2">
+    <p>โหมด waveform วาด “ความดันอากาศ” เทียบกับแกนนอนที่เป็นอะไร?</p>
+    <button class="opt">เทียบกับระดับความถี่เสียง</button>
+    <button class="opt">เทียบกับระดับความดังเสียง</button>
+    <button class="opt">เทียบกับเวลาที่ผ่านไปจริง</button>
+    <div class="feedback"></div>
+  </div>
+</div>
+
+<h2>5 · ลงมือกับโค้ดจริง</h2>
+<p>
+ถึงเวลาเขียนโค้ดไปเรียนไป ทำในเครื่องคุณเอง:
+</p>
+<ol>
+<li>เปิดแอป Faunaform แล้วสลับไปโหมด <strong>waveform</strong> โดย <em>ปิดไมค์</em> ไว้ — คุณจะเห็นคลื่นนิ่ง ๆ จาก <code>drawIdle()</code></li>
+<li>เปิด <code>js/audio.js</code> หาบรรทัด <code>timeData[i] = 128 + Math.sin(...) * 4;</code></li>
+<li>เปลี่ยนเลข <code>4</code> เป็น <code>40</code> แล้วรีโหลด — <strong>ทำนายก่อน</strong>ว่าคลื่นนิ่งจะเปลี่ยนยังไง? (เฉลย: เหวี่ยงสูงขึ้นมาก เพราะคุณเพิ่งเพิ่ม “แอมพลิจูด”)</li>
+<li>ลองเปลี่ยน <code>i * 0.035</code> เป็น <code>i * 0.2</code> — คลื่นจะถี่ขึ้น (เพิ่ม “ความถี่”)</li>
+<li>เปลี่ยนกลับเป็นค่าเดิมเมื่อพอใจแล้ว</li>
+</ol>
+<p>
+ถ้าคุณทำนายผลถูกก่อนรีโหลด แปลว่าบทนี้เข้าหัวแล้ว 🎉
+</p>
+
+<div class="ask-teacher">
+<strong>ถามผมได้ทุกเมื่อ</strong> — ผมคือครูของคุณในคอร์สนี้ ติดตรงไหน สงสัยคำไหน
+หรืออยากให้ลงลึกกว่านี้ พิมพ์ถามมาได้เลย เช่น “ทำไมไมค์ถึงวัดได้เป็นไบต์ 0–255?”
+หรือ “แล้วโหมด spectrum ต่างจาก waveform ยังไง?”
+</div>
+
+<div class="lesson-footer">
+<p>
+📖 <strong>แหล่งอ่านต่อ (คุณภาพสูงสุด):</strong>
+<a href="https://jackschaedler.github.io/circles-sines-signals/" target="_blank">Seeing Circles, Sines, and Signals — Introduction</a>
+โดย Jack Schaedler — เลื่อนดูคลื่น sine แบบโต้ตอบได้ ใช้เวลาแค่ 5 นาที
+</p>
+<p>
+<strong>บทต่อไป (ตัวอย่าง):</strong> จากคลื่นเดียว สู่ “ส่วนผสมของความถี่” —
+ทำไมเสียงจริงไม่ใช่ sine เส้นเดียว และ FFT แยกมันออกมาเป็น <code>frequencyData</code> ได้ยังไง
+</p>
+</div>
+
+<script>
+// --- คลื่น sine แบบโต้ตอบ: เลียนแบบสเกลไบต์ 0–255 ของ getByteTimeDomainData ---
+const cv = document.getElementById('wave');
+const ctx = cv.getContext('2d');
+const ampEl = document.getElementById('amp');
+const freqEl = document.getElementById('freq');
+const ampv = document.getElementById('ampv');
+const freqv = document.getElementById('freqv');
+
+function draw() {
+  const W = cv.width, H = cv.height;
+  const amp = +ampEl.value;        // 0–120 (หน่วยไบต์ รอบ ๆ 128)
+  const cycles = +freqEl.value;    // จำนวนรอบคลื่นที่เห็นในจอ
+  ampv.textContent = amp;
+  freqv.textContent = cycles;
+  ctx.clearRect(0, 0, W, H);
+
+  // เส้นกลาง = ค่า 128 = เงียบ
+  ctx.strokeStyle = '#d9cdb8';
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath(); ctx.moveTo(0, H/2); ctx.lineTo(W, H/2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#a89b86';
+  ctx.font = '13px monospace';
+  ctx.fillText('128  (เงียบ)', 8, H/2 - 8);
+
+  // คลื่น
+  ctx.strokeStyle = '#1a6fb8';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  for (let x = 0; x <= W; x++) {
+    const t = x / W;
+    const value = 128 + Math.sin(t * cycles * 2 * Math.PI) * amp; // 0–255
+    const y = H - (value / 255) * H;
+    x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+}
+ampEl.addEventListener('input', draw);
+freqEl.addEventListener('input', draw);
+draw();
+
+// --- เล่นเสียงจริงด้วย Web Audio API (oscillator) ---
+let actx = null;
+document.getElementById('play').addEventListener('click', () => {
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === 'suspended') actx.resume();
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  // ความถี่ slider (1–24 รอบ) -> โน้ตจริง 130–1000 Hz เพื่อให้ได้ยินความสูงต่ำ
+  const hz = 130 + (+freqEl.value - 1) * (870 / 23);
+  // แอมพลิจูด slider (0–120) -> ความดัง 0–0.4
+  const vol = (+ampEl.value / 120) * 0.4;
+  osc.type = 'sine';
+  osc.frequency.value = hz;
+  gain.gain.value = vol;
+  osc.connect(gain).connect(actx.destination);
+  const now = actx.currentTime;
+  gain.gain.setValueAtTime(vol, now);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9); // เฟดออกนุ่ม ๆ
+  osc.start(now);
+  osc.stop(now + 0.95);
+});
+
+// --- แบบทดสอบ: ฟีดแบ็กทันที ---
+const fbMsg = ['ถูกต้อง!', 'ยังไม่ใช่ ลองคิดใหม่จากเส้น 128 ตรงกลาง'];
+document.querySelectorAll('#quiz .q').forEach(q => {
+  const correct = +q.dataset.correct;
+  const opts = [...q.querySelectorAll('.opt')];
+  const fb = q.querySelector('.feedback');
+  opts.forEach((opt, i) => {
+    opt.addEventListener('click', () => {
+      opts.forEach(o => o.classList.remove('correct', 'wrong'));
+      if (i === correct) { opt.classList.add('correct'); fb.textContent = '✓ ' + fbMsg[0]; }
+      else { opt.classList.add('wrong'); opts[correct].classList.add('correct'); fb.textContent = '✗ ' + fbMsg[1]; }
+    });
+  });
+});
+</script>
+</body>
+</html>
