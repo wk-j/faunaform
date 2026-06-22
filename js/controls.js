@@ -86,6 +86,7 @@ export function initControls() {
       case "Digit2": case "Numpad2": setMode(2); break;
       case "Digit3": case "Numpad3": setMode(3); break;
       case "Digit4": case "Numpad4": setMode(4); break;
+      case "Digit5": case "Numpad5": setMode(5); break;
       case "ArrowLeft": rotateCamera(cameraRotateStep(big), 0); break;
       case "ArrowRight": rotateCamera(-cameraRotateStep(big), 0); break;
       case "ArrowUp": rotateCamera(0, cameraRotateStep(big)); break;

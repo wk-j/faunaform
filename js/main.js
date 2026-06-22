@@ -89,7 +89,8 @@ function updateMicPrompt() {
     state.isLive ||
       (state.currentMode !== 1 &&
         state.currentMode !== 2 &&
-        state.currentMode !== 3)
+        state.currentMode !== 3 &&
+        state.currentMode !== 4)
   );
 }
 
@@ -195,7 +196,7 @@ function applyMode(mode) {
     if (label) label.textContent = `${mode.name} — in development`;
     placeholderOverlay.classList.toggle(
       "hidden",
-      mode.id === 1 || mode.id === 2 || mode.id === 3
+      mode.id === 1 || mode.id === 2 || mode.id === 3 || mode.id === 4
     );
   }
   updateMicPrompt();
@@ -234,6 +235,11 @@ function render(now) {
         Number(sensitivity.value)
       );
       render3d?.updateRadial(bars);
+    } else if (state.currentMode === 4) {
+      // Spectrogram keeps its own history and color mapping, so it takes the raw
+      // byte spectrum — but it shares the sensitivity gain so it reads as boldly
+      // as the bars and responds to [ / ].
+      render3d?.updateSpectrogram(state.frequencyData, Number(sensitivity.value));
     }
   }
 
