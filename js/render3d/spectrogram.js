@@ -1,139 +1,146 @@
-// Live spectrogram form: a scrolling heat-map panel. Frequency runs up the Y
-// axis, time scrolls right-to-left across X, and loudness drives color. Unlike
-// the bar forms (a single instant), this form keeps a short history of the
-// signal, so a sound's *shape over time* is visible — a chirp sweeps, a trill
-// pulses, a hiss fills the panel. Implemented as a DataTexture written one
-// column per frame and scrolled via a ring-buffer offset, so the per-frame cost
-// is one column write plus a texture re-upload, not a full-array memmove.
+// Live 3D spectrogram form: a scrolling "waterfall" surface. Frequency runs
+// across the X axis, time recedes into the scene along Z (newest at the front
+// edge, history flowing back), and loudness is BOTH the height of the surface
+// and its color. Reading a sound's shape over time becomes reading a landscape:
+// a sustained tone is a ridge, a chirp a diagonal wall, a hiss a broad plateau.
 //
-// The 3D workspace has a LIGHT background, so this reads as a light panel (a
-// near-white card). Color encodes LOUDNESS directly (not frequency): quiet air
-// stays near the panel color and blends with the workspace, and energy climbs a
-// high-contrast ramp teal → green → amber → red → deep violet. Loudness maps to
-// both hue AND darkness, so where a sound is strong is unmistakable on the card
-// — frequency is already the vertical axis, so hue is free to carry magnitude.
+// Built as one BufferGeometry grid (freqCols × timeRows). Each frame the height
+// + color rows shift one step toward the back and the newest spectrum is written
+// into the front row, then the position.y and color attributes are re-uploaded.
+// Vertices are unlit + vertex-colored to match the other forms; the relief and
+// the orbit camera carry the 3D, no per-frame normal recompute needed.
 import * as THREE from "three";
+import { palette } from "../state.js";
 
-// The panel's quiet color (near-white card) and its soft frame, both light to
-// sit naturally on the light workspace.
-const PANEL = { r: 238, g: 242, b: 247 };
-const FRAME_HEX = 0xccd4de;
+// Reusable scratch so the hot loops allocate nothing.
+const _c = [0, 0, 0];
 
-// Loudness colormap. Stops are byte RGB; each successive stop is more saturated
-// and darker than the last, so perceived intensity rises monotonically with
-// energy — the property a frequency-position rainbow lacked.
-const HEAT = [
-  { t: 0.0, c: [238, 242, 247] }, // panel — silence blends away
-  { t: 0.06, c: [40, 175, 190] }, // teal — even faint energy inks in clearly
-  { t: 0.26, c: [40, 160, 85] }, // green
-  { t: 0.5, c: [235, 160, 35] }, // amber
-  { t: 0.74, c: [215, 45, 70] }, // red
-  { t: 1.0, c: [60, 20, 90] } // deep violet — loudest
+// Loudness → color, stored as linear RGB (0-1) straight from THREE.Color, the
+// same space the other forms feed their vertex/instance colors. Quiet sits near
+// the light workspace (a pale ridge that stays out of the way); louder climbs
+// the brand gradient to a vivid rose peak.
+const STOPS = [
+  { t: 0.0, c: new THREE.Color(0xe2e7ee).toArray() },
+  { t: 0.22, c: new THREE.Color(palette.cyan).toArray() },
+  { t: 0.48, c: new THREE.Color(palette.lime).toArray() },
+  { t: 0.72, c: new THREE.Color(palette.amber).toArray() },
+  { t: 1.0, c: new THREE.Color(palette.rose).toArray() }
 ];
 
-// Map a loudness byte (0-255) to an [r,g,b] byte triple via the colormap. sqrt
-// pre-warps the input so quiet-to-mid energy spreads across more of the ramp
-// and reads clearly instead of hugging the pale low end.
-function heat(mag, out) {
-  const t = Math.sqrt(mag / 255);
-  let lo = HEAT[0];
-  let hi = HEAT[HEAT.length - 1];
-  for (let i = 1; i < HEAT.length; i++) {
-    if (t <= HEAT[i].t) {
-      lo = HEAT[i - 1];
-      hi = HEAT[i];
+// Write the linear color for loudness `t` into out[0..2].
+function colorAt(t, out) {
+  let lo = STOPS[0];
+  let hi = STOPS[STOPS.length - 1];
+  for (let i = 1; i < STOPS.length; i++) {
+    if (t <= STOPS[i].t) {
+      lo = STOPS[i - 1];
+      hi = STOPS[i];
       break;
     }
   }
   const span = hi.t - lo.t;
   const k = span > 0 ? (t - lo.t) / span : 0;
-  out[0] = Math.round(lo.c[0] + (hi.c[0] - lo.c[0]) * k);
-  out[1] = Math.round(lo.c[1] + (hi.c[1] - lo.c[1]) * k);
-  out[2] = Math.round(lo.c[2] + (hi.c[2] - lo.c[2]) * k);
+  out[0] = lo.c[0] + (hi.c[0] - lo.c[0]) * k;
+  out[1] = lo.c[1] + (hi.c[1] - lo.c[1]) * k;
+  out[2] = lo.c[2] + (hi.c[2] - lo.c[2]) * k;
 }
 
 export function createSpectrogramForm({
-  timeCols = 512,
-  freqRows = 512,
-  width = 11,
-  height = 4.2,
-  midY = 1.35,
+  freqCols = 110,
+  timeRows = 240,
+  spanX = 9,
+  spanZ = 13,
+  floorY = -0.75,
+  maxHeight = 4,
   binFraction = 0.7
 } = {}) {
-  // A group so the scrolling texture panel and its frame move and toggle
-  // together; render3d.js flips `.visible` on this group.
-  const group = new THREE.Group();
-  group.position.y = midY;
+  const N = freqCols * timeRows;
+  const positions = new Float32Array(N * 3);
+  // RGBA: the alpha channel hides the quiet base. Cells with little energy get
+  // alpha ~0 and are discarded by the material's alphaTest, so silence shows the
+  // scene floor through it instead of laying down a second flat sheet on top of
+  // the grid. Only real signal rises and renders.
+  const colors = new Float32Array(N * 4);
+  const loud = new Float32Array(N); // per-cell loudness [0,1], the scrollable state
 
-  const data = new Uint8Array(timeCols * freqRows * 4);
-  // Seed every pixel to the light panel color (opaque) so an idle panel reads as
-  // a clean card, not a transparent gap.
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = PANEL.r;
-    data[i + 1] = PANEL.g;
-    data[i + 2] = PANEL.b;
-    data[i + 3] = 255;
+  // Fixed X (frequency) and Z (time) per vertex; only Y and color move.
+  for (let t = 0; t < timeRows; t++) {
+    for (let f = 0; f < freqCols; f++) {
+      const i = t * freqCols + f;
+      const x = -spanX / 2 + (f / (freqCols - 1)) * spanX;
+      // t = 0 is the newest row at the front (+Z), older rows recede to -Z.
+      const z = spanZ / 2 - (t / (timeRows - 1)) * spanZ;
+      positions[i * 3] = x;
+      positions[i * 3 + 1] = floorY;
+      positions[i * 3 + 2] = z;
+      colors[i * 4 + 3] = 0; // start fully transparent (silent)
+    }
   }
 
-  const texture = new THREE.DataTexture(data, timeCols, freqRows, THREE.RGBAFormat);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping; // lets the ring-buffer offset scroll seamlessly
-  // NearestFilter at this high density (512×512) gives crisp, hard-edged cells
-  // with no softening — at ~1-2 screen pixels per texel it reads sharp, not
-  // blocky. (LinearFilter smoothed the panel, which read as "blurry".) No
-  // mipmaps, since the panel is only ever magnified.
-  texture.minFilter = THREE.NearestFilter;
-  texture.magFilter = THREE.NearestFilter;
-  texture.generateMipmaps = false;
-  texture.needsUpdate = true;
+  // Two triangles per grid quad.
+  const index = [];
+  for (let t = 0; t < timeRows - 1; t++) {
+    for (let f = 0; f < freqCols - 1; f++) {
+      const a = t * freqCols + f;
+      const b = a + 1;
+      const c = a + freqCols;
+      const d = c + 1;
+      index.push(a, c, b, b, c, d);
+    }
+  }
 
-  // Soft frame: slightly larger and just behind the panel, a light gray so the
-  // card has a defined edge against the workspace without going dark.
-  const backing = new THREE.Mesh(
-    new THREE.PlaneGeometry(width + 0.28, height + 0.28),
-    new THREE.MeshBasicMaterial({ color: FRAME_HEX, fog: false })
-  );
-  backing.position.z = -0.02;
-  group.add(backing);
+  const geometry = new THREE.BufferGeometry();
+  const positionAttr = new THREE.BufferAttribute(positions, 3);
+  const colorAttr = new THREE.BufferAttribute(colors, 4);
+  positionAttr.setUsage(THREE.DynamicDrawUsage);
+  colorAttr.setUsage(THREE.DynamicDrawUsage);
+  geometry.setAttribute("position", positionAttr);
+  geometry.setAttribute("color", colorAttr);
+  geometry.setIndex(index);
 
-  // fog:false keeps the heat colors crisp — scene fog would blend them toward
-  // the light background and flatten the contrast we just built.
-  const panel = new THREE.Mesh(
-    new THREE.PlaneGeometry(width, height),
-    new THREE.MeshBasicMaterial({ map: texture, fog: false })
-  );
-  group.add(panel);
+  // alphaTest discards near-transparent (quiet) fragments outright — no blending,
+  // so there is no second floor and no transparency sort order to manage; drawn
+  // (loud) fragments stay fully opaque and depth-correct.
+  const material = new THREE.MeshBasicMaterial({
+    vertexColors: true,
+    side: THREE.DoubleSide,
+    transparent: true,
+    alphaTest: 0.35
+  });
 
-  const rgb = [0, 0, 0];
-  let head = 0; // next column to overwrite (oldest visible column)
+  const mesh = new THREE.Mesh(geometry, material);
+  // Y changes every frame, so a static bounding sphere would wrongly cull it.
+  mesh.frustumCulled = false;
 
   function update(frequencyData, gain = 1) {
     const usableBins = Math.max(1, Math.floor(frequencyData.length * binFraction));
-    for (let r = 0; r < freqRows; r++) {
-      // Row 0 is texture-bottom: keep low frequencies at the bottom of the panel.
-      const bin = Math.min(usableBins - 1, Math.floor((r / freqRows) * usableBins));
-      // Apply the sensitivity gain (same control the bars use) so the panel is
-      // as bold as the other forms and the user can push it with [ / ].
-      const mag = Math.min(255, (frequencyData[bin] || 0) * gain);
-      heat(mag, rgb);
-      const idx = (r * timeCols + head) * 4;
-      data[idx] = rgb[0];
-      data[idx + 1] = rgb[1];
-      data[idx + 2] = rgb[2];
+    // Shift every row one step toward the back (row t <- row t-1).
+    loud.copyWithin(freqCols, 0, N - freqCols);
+    // Write the newest spectrum into the front row (t = 0).
+    for (let f = 0; f < freqCols; f++) {
+      const bin = Math.min(usableBins - 1, Math.floor((f / freqCols) * usableBins));
+      loud[f] = Math.min(1, ((frequencyData[bin] || 0) / 255) * gain);
     }
-    head = (head + 1) % timeCols;
-    // Oldest column (head) sits at the left edge, newest (head-1) at the right.
-    texture.offset.x = head / timeCols;
-    texture.needsUpdate = true;
+    // Re-derive height + color + alpha for every cell from the shifted loudness
+    // field. Alpha ramps up fast so faint signal still shows but true silence
+    // (alpha below alphaTest) is discarded — no flat quiet sheet.
+    for (let i = 0; i < N; i++) {
+      const v = loud[i];
+      positions[i * 3 + 1] = floorY + v * maxHeight;
+      colorAt(v, _c);
+      colors[i * 4] = _c[0];
+      colors[i * 4 + 1] = _c[1];
+      colors[i * 4 + 2] = _c[2];
+      colors[i * 4 + 3] = Math.min(1, v * 6);
+    }
+    positionAttr.needsUpdate = true;
+    colorAttr.needsUpdate = true;
   }
 
   function dispose() {
-    backing.geometry.dispose();
-    backing.material.dispose();
-    panel.geometry.dispose();
-    panel.material.dispose();
-    texture.dispose();
+    geometry.dispose();
+    material.dispose();
   }
 
-  return { mesh: group, update, dispose };
+  return { mesh, update, dispose };
 }
