@@ -1,19 +1,20 @@
-// Graph-form modes for the 3D workspace. Modes 1-3 (Spectrum, Waveform, Radial)
-// are complete forms; mode 4 (Signatures) renders the "in development"
-// placeholder until its own PRD ships (see ADR 0002). `currentMode` lives on the
-// shared `state` object so it stays the single source of truth; this module owns
-// the mode metadata and a tiny subscribe hub so input (controls.js) and output
-// (main.js) stay decoupled.
+// Graph-form modes for the 3D workspace. Modes 1-4 (Spectrum, Waveform, Radial,
+// Spectrogram) are complete forms; mode 5 (Signatures) renders the "in
+// development" placeholder until its own PRD ships (see ADR 0002). `currentMode`
+// lives on the shared `state` object so it stays the single source of truth;
+// this module owns the mode metadata and a tiny subscribe hub so input
+// (controls.js) and output (main.js) stay decoupled.
 import { state } from "./state.js";
 
 // `key` matches the active-form key the renderer understands; "spectrum",
-// "waveform", and "radial" are real forms, so only "signatures" resolves to the
-// placeholder.
+// "waveform", "radial", and "spectrogram" are real forms, so only "signatures"
+// resolves to the placeholder.
 export const MODES = [
   { id: 1, key: "spectrum", name: "Spectrum" },
   { id: 2, key: "waveform", name: "Waveform" },
   { id: 3, key: "radial", name: "Radial" },
-  { id: 4, key: "signatures", name: "Signatures" }
+  { id: 4, key: "spectrogram", name: "Spectrogram" },
+  { id: 5, key: "signatures", name: "Signatures" }
 ];
 
 const listeners = new Set();

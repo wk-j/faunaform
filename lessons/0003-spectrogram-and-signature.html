@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บทที่ 3 · Spectrogram กับ Signature — Faunaform</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<p class="course-tag">Faunaform · เรียนรู้เรื่องเสียง</p>
+<p class="lesson-no">บทเรียนที่ 0003 · ต่อจาก <a href="0002-fft-frequency-domain.html">บทที่ 2</a></p>
+<h1>เพิ่ม “เวลา” กลับเข้าไป: spectrogram และเหตุผลที่ signature ของคุณทิ้งมันไป</h1>
+
+<p>
+บทที่ 2 ให้สเปกตรัม — ภาพความถี่ <strong>ณ เสี้ยววินาทีเดียว</strong>
+แต่เสียงสัตว์ไม่ได้นิ่ง มันเปลี่ยนไปตามเวลา: นกร้องไล่เสียงขึ้น กบร้องเป็นจังหวะเป็นห้วง ๆ
+บทนี้เพิ่มแกนที่สาม — <strong>เวลา</strong> — แล้วโยงเข้ากับวิธีที่ <code>signatures.js</code> ของคุณทำงานจริง
+</p>
+
+<h2>1 · Spectrogram = สเปกตรัมหลาย ๆ ภาพต่อกันตามเวลา</h2>
+<p>
+ลองนึกถึงสเปกตรัม (แท่งความถี่) แล้ว “หมุนมันตะแคง” ให้แท่งกลายเป็น <em>แถบสี</em> แนวตั้ง
+สีเข้ม = เงียบ, สีสว่าง = ดัง จากนั้นวางแถบใหม่เรื่อย ๆ ทุกเฟรม ไล่จากซ้ายไปขวา
+สิ่งที่ได้คือ <strong>spectrogram</strong>:
+</p>
+<ul>
+<li><strong>แกนนอน = เวลา</strong> (ไหลไปเรื่อย ๆ)</li>
+<li><strong>แกนตั้ง = ความถี่</strong> (ต่ำอยู่ล่าง สูงอยู่บน)</li>
+<li><strong>สี = ความดัง</strong> ของความถี่นั้น ณ เวลานั้น (ค่า 0–255 จาก <code>frequencyData</code>)</li>
+</ul>
+<p>
+นี่คือเครื่องมือที่นักวิทยาศาสตร์เสียงสัตว์ (bioacoustics) ใช้ “อ่าน” เสียงจริง ๆ
+เพราะมันเห็นทั้งความถี่และลีลาตามเวลาในภาพเดียว
+</p>
+
+<h2>2 · ลองเล่น: spectrogram สดจากไมค์คุณ</h2>
+<p>
+กดเปิดไมค์ แล้ว <strong>ผิวปากไล่เสียงขึ้น</strong> — จะเห็นเส้นสว่างไต่ขึ้นบน
+ลอง <strong>พูด</strong> — เห็นแถบซ้อนกันหลายชั้น (ฮาร์มอนิก) ลอง <strong>ตบมือ</strong> — เห็นเส้นแนวตั้งพุ่งเต็มความถี่ชั่วขณะ
+(วิดเจ็ตนี้คือต้นแบบของ <em>graph form</em> ใหม่ที่คุณเพิ่มลง Faunaform ได้เลย)
+</p>
+
+<div class="widget">
+  <canvas id="spec" width="720" height="280" aria-label="spectrogram สดจากไมโครโฟน"></canvas>
+  <div class="controls">
+    <div class="control-row">
+      <label>&nbsp;</label>
+      <button id="mic">🎤 เปิดไมค์</button>
+      <span class="val" id="micstate">ปิดอยู่</span>
+    </div>
+  </div>
+  <p style="font-size:.8rem;color:var(--ink-soft);margin:.4rem 0 0;font-family:var(--mono)">แกนตั้ง = ความถี่ (ต่ำ↓ สูง↑) · แกนนอน = เวลา → · สว่าง = ดัง</p>
+</div>
+
+<div class="try">
+<span class="label">ลองสังเกต</span>
+เสียงที่ฟังดู “เหมือนกัน” ในสเปกตรัมแท่งเดียว อาจมี <em>ลีลาตามเวลา</em> ต่างกันสิ้นเชิง:
+เสียงหวีดยาว = เส้นแนวนอนเส้นเดียว · เสียงนกรัว = จุดขาด ๆ เป็นจังหวะ ·
+เสียงไล่โน้ต = เส้นเฉียงไต่ขึ้น นี่คือข้อมูลที่ “สเปกตรัมภาพนิ่ง” มองไม่เห็น
+</div>
+
+<h2>3 · เฉลย: signature ของคุณ <em>เฉลี่ย</em> แกนเวลาทิ้ง</h2>
+<p>
+นี่คือหัวใจของบท เปิด <code>js/signatures.js</code> ดู ตอนจับ signature โค้ดคุณทำแบบนี้:
+</p>
+<pre><code>// accumulateCapture: บวกสเปกตรัมทุกเฟรมสะสมไว้
+captureAccum[i] += frequencyData[i];
+
+// finalizeCapture: หารด้วยจำนวนเฟรม = ค่าเฉลี่ยตลอด 650ms
+avg[i] = accum[i] / state.captureFrames;</code></pre>
+<p>
+แปลว่า signature เก็บ <strong>“สเปกตรัมเฉลี่ยตลอด <code>CAPTURE_MS</code> = 650 มิลลิวินาที”</strong>
+มันยุบ spectrogram ทั้งแผ่น (หลายสิบคอลัมน์) ให้เหลือ <strong>คอลัมน์เดียว</strong>
+แล้ว <code>spectrumToBars()</code> ก็ normalize ตามยอดของตัวเอง — เทียบ <em>รูปร่าง</em> ไม่ใช่ความดัง
+</p>
+
+<div class="why">
+<span class="label">ทำไมเรื่องนี้สำคัญต่อ mission ของคุณ</span>
+เป้าหมายคือทำให้เสียงสัตว์ต่างชนิด “ดูแยกกันได้” แต่ถ้าเฉลี่ยเวลาทิ้ง —
+<strong>เสียงหวีดยาว กับ เสียงรัวเป็นจังหวะ ที่ใช้ความถี่เดียวกัน จะได้ signature เกือบเหมือนกัน!</strong>
+เพราะค่าเฉลี่ยของมันใกล้กัน ความรู้นี้บอกคุณว่า: ถ้าจะแยกสัตว์ที่ต่างกันแค่ “จังหวะเวลา”
+signature แบบเฉลี่ยอาจไม่พอ — อาจต้องเก็บลีลาตามเวลาด้วย (เช่น เพิ่ม descriptor หรือทำ graph form แบบ spectrogram)
+</div>
+
+<h2>4 · เช็กความเข้าใจ</h2>
+<div class="quiz" id="quiz">
+  <h3>ตอบจากความจำ</h3>
+
+  <div class="q" data-correct="1">
+    <p>ในภาพ spectrogram แกนตั้งและสีแทนอะไร?</p>
+    <button class="opt">แกนตั้งคือเวลา และสีแทนความถี่</button>
+    <button class="opt">แกนตั้งคือความถี่ และสีแทนความดัง</button>
+    <button class="opt">แกนตั้งคือความดัง และสีแทนเวลา</button>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="q" data-correct="0">
+    <p>signature ของ Faunaform เก็บอะไรไว้กันแน่?</p>
+    <button class="opt">สเปกตรัมเฉลี่ยตลอดช่วงจับ ทิ้งแกนเวลา</button>
+    <button class="opt">สเปกตรัมทุกเฟรมเรียงตามเวลาครบถ้วน</button>
+    <button class="opt">รูปคลื่นดิบในแกนเวลาตลอดช่วงที่จับ</button>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="q" data-correct="2">
+    <p>เสียงสองแบบที่ signature อาจแยกไม่ออก คือคู่ไหน?</p>
+    <button class="opt">เสียงสูงมากกับเสียงต่ำมากที่ดังเท่ากัน</button>
+    <button class="opt">เสียงดังลั่นกับเสียงเบามากที่ความถี่เดียวกัน</button>
+    <button class="opt">เสียงหวีดยาวกับเสียงรัวที่ใช้ความถี่เดียวกัน</button>
+    <div class="feedback"></div>
+  </div>
+</div>
+
+<h2>5 · ลงมือกับโค้ดจริง</h2>
+<ol>
+<li>เปิด Faunaform เปิดไมค์ <strong>จับ signature ของเสียงหวีดยาว</strong> หนึ่งครั้ง</li>
+<li><strong>จับ signature ของเสียงรัว/แตะลิ้น</strong> ที่ระดับเสียงใกล้ ๆ กันอีกครั้ง</li>
+<li>ดูค่า <strong>Δ last two</strong> ใน diff readout — มันต่างกันน้อยกว่าที่หูคุณรู้สึกไหม? นั่นคือผลของการเฉลี่ยเวลา</li>
+<li>เปิด <code>js/state.js</code> ลองเพิ่ม <code>CAPTURE_MS</code> จาก 650 เป็น 2000 — signature จะ “นิ่ง/เฉลี่ยมากขึ้น” (จับลีลาสั้น ๆ ได้น้อยลงไปอีก) แล้วเปลี่ยนกลับ</li>
+<li><strong>คิดต่อ:</strong> ถ้าจะแยกเสียงหวีดกับเสียงรัวให้ออก คุณจะเพิ่มข้อมูลอะไรเข้าไปใน signature? (เราจะคุยกันบทหน้า)</li>
+</ol>
+
+<div class="ask-teacher">
+<strong>ถามผมได้ทุกเมื่อ</strong> — เช่น “อยากเพิ่มโหมด spectrogram ลง Faunaform จริง ต้องแก้ไฟล์ไหนบ้าง?”,
+“descriptor พวก centroid/flatness ใน <code>spectrumFeatures()</code> มันคืออะไร?”,
+หรือ “ทำไมต้อง normalize ตามยอดตัวเองใน <code>spectrumToBars</code>?”
+</div>
+
+<div class="lesson-footer">
+<p>
+📖 <strong>แหล่งอ่านต่อ:</strong>
+<a href="https://jackschaedler.github.io/circles-sines-signals/" target="_blank">Seeing Circles, Sines, and Signals</a>
+(ทบทวนเรื่องการสุ่มตัวอย่างตามเวลา) ·
+<a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Visualizations_with_Web_Audio_API" target="_blank">MDN — Visualizations with Web Audio API</a>
+(โครงโค้ด requestAnimationFrame ที่วิดเจ็ตนี้ใช้)
+</p>
+<p>
+<strong>บทต่อไป (ตัวอย่าง):</strong> เจาะ <code>spectrumFeatures()</code> — centroid (ความสว่างของเสียง),
+flatness (โทนกับเสียงซ่า), rolloff, bandwidth — ตัวเลขไม่กี่ตัวที่ย่อ “ตัวตน” ของเสียงสัตว์ลงมา
+และเป็นกุญแจสู่การแยก signature ให้คมขึ้น
+</p>
+</div>
+
+<script>
+// ===== Spectrogram สดจากไมโครโฟน =====
+const cv = document.getElementById('spec');
+const ctx = cv.getContext('2d');
+const micBtn = document.getElementById('mic');
+const micState = document.getElementById('micstate');
+const W = cv.width, H = cv.height;
+let actx, analyser, freq, raf, running = false;
+
+// แผนที่สี: 0=เข้ม → ส้มอุ่น → ขาว (โทน Faunaform)
+function heat(v) {
+  const t = v / 255;
+  if (t < 0.5) { const k = t / 0.5; return `rgb(${Math.round(20 + k*180)},${Math.round(15 + k*70)},${Math.round(30 + k*5)})`; }
+  const k = (t - 0.5) / 0.5;
+  return `rgb(${Math.round(200 + k*55)},${Math.round(85 + k*150)},${Math.round(35 + k*180)})`;
+}
+
+function frame() {
+  analyser.getByteFrequencyData(freq);
+  // เลื่อนภาพเดิมไปทางซ้าย 1px
+  const img = ctx.getImageData(1, 0, W - 1, H);
+  ctx.putImageData(img, 0, 0);
+  // วาดคอลัมน์ใหม่ที่ขอบขวา (ความถี่ต่ำอยู่ล่าง)
+  const bins = freq.length;
+  for (let y = 0; y < H; y++) {
+    const bin = Math.floor((1 - y / H) * bins * 0.7); // ใช้ 70% ล่างของย่านความถี่
+    ctx.fillStyle = heat(freq[bin] || 0);
+    ctx.fillRect(W - 1, y, 1, 1);
+  }
+  raf = requestAnimationFrame(frame);
+}
+
+async function startMic() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, autoGainControl: false } });
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+    analyser = actx.createAnalyser();
+    analyser.fftSize = 1024;            // → 512 bins
+    analyser.smoothingTimeConstant = 0.5;
+    actx.createMediaStreamSource(stream).connect(analyser);
+    freq = new Uint8Array(analyser.frequencyBinCount);
+    running = true;
+    micBtn.textContent = '■ หยุด';
+    micState.textContent = 'กำลังฟัง…';
+    cv._stream = stream;
+    frame();
+  } catch (e) {
+    micState.textContent = 'เปิดไมค์ไม่ได้';
+    console.error(e);
+  }
+}
+function stopMic() {
+  running = false;
+  cancelAnimationFrame(raf);
+  if (cv._stream) cv._stream.getTracks().forEach(t => t.stop());
+  if (actx && actx.state !== 'closed') actx.close();
+  micBtn.textContent = '🎤 เปิดไมค์';
+  micState.textContent = 'ปิดอยู่';
+}
+micBtn.addEventListener('click', () => running ? stopMic() : startMic());
+
+// พื้นหลังเริ่มต้น
+ctx.fillStyle = heat(0); ctx.fillRect(0, 0, W, H);
+
+// ===== แบบทดสอบ =====
+const fb = ['ถูกต้อง!', 'ยังไม่ใช่ — นึกถึงสามแกน: เวลา/ความถี่/ความดัง'];
+document.querySelectorAll('#quiz .q').forEach(q => {
+  const correct = +q.dataset.correct;
+  const opts = [...q.querySelectorAll('.opt')];
+  const f = q.querySelector('.feedback');
+  opts.forEach((opt, i) => opt.addEventListener('click', () => {
+    opts.forEach(o => o.classList.remove('correct', 'wrong'));
+    if (i === correct) { opt.classList.add('correct'); f.textContent = '✓ ' + fb[0]; }
+    else { opt.classList.add('wrong'); opts[correct].classList.add('correct'); f.textContent = '✗ ' + fb[1]; }
+  }));
+});
+</script>
+</body>
+</html>

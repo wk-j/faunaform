@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บทที่ 4 · Spectral Features — Faunaform</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<p class="course-tag">Faunaform · เรียนรู้เรื่องเสียง</p>
+<p class="lesson-no">บทเรียนที่ 0004 · ต่อจาก <a href="0003-spectrogram-and-signature.html">บทที่ 3</a></p>
+<h1>ย่อ “ตัวตน” ของเสียงเหลือไม่กี่ตัวเลข: spectral features</h1>
+
+<p>
+signature ของคุณเก็บแท่งความถี่ <strong>96 แท่ง</strong> (<code>SIG_BARS</code>) — เทียบกันด้วยตาก็ได้
+แต่บางครั้งเราอยากได้ <em>ตัวเลขสรุป</em> ไม่กี่ตัวที่บอกได้ทันทีว่า “เสียงนี้สว่างหรือทึบ
+เป็นโทนหรือเป็นเสียงซ่า” นั่นคือหน้าที่ของ <code>spectrumFeatures()</code> ใน
+<code>js/transforms.js</code> บทนี้จะทำให้สี่ตัวเลขนั้น <em>มีความหมาย</em> ขึ้นมาในหัวคุณ
+</p>
+
+<h2>1 · สองตัวที่ Faunaform โชว์อยู่แล้ว</h2>
+<p>
+ใน legend ของ signature โค้ดคุณแสดงสองค่านี้ (ดู <code>renderLegend</code> ใน <code>signatures.js</code>):
+</p>
+<ul>
+<li><strong>centroid</strong> — “จุดศูนย์ถ่วงของความถี่” = ค่าเฉลี่ยความถี่แบบถ่วงน้ำหนักด้วยความดัง
+ตีความว่า <strong>ความสว่างของเสียง (brightness)</strong> สูง = แหลม/คม (นกหวีด), ต่ำ = ทึบ/ทุ้ม (เสียงคำราม)
+โค้ดโชว์เป็น <code>bright {centroid}%</code></li>
+<li><strong>flatness</strong> — “สเปกตรัมแบนราบแค่ไหน” = อัตราส่วน geometric mean ต่อ arithmetic mean
+ใกล้ 1 = พลังงานกระจายทั่ว = <strong>เสียงซ่า/รบกวน (noisy)</strong> · ใกล้ 0 = พลังงานรวมเป็นยอด = <strong>เป็นโทนชัด (tonal)</strong>
+โค้ดตัดที่ <code>0.35</code>: เกินกว่านั้นเรียก “noisy” ไม่งั้น “tonal”</li>
+</ul>
+
+<h2>2 · สองตัวที่คุณ <em>คำนวณไว้แล้ว แต่ยังไม่ได้ใช้</em></h2>
+<p>
+<code>spectrumFeatures()</code> คืนค่า 4 ตัว แต่ <code>renderLegend</code> โชว์แค่ 2 อีกสองตัวนี้ถูกคำนวณทิ้งไว้เฉย ๆ:
+</p>
+<ul>
+<li><strong>rolloff</strong> — ความถี่ที่ “พลังงานสะสมครบ 85%” อยู่ใต้จุดนั้น
+บอกว่าเสียงม้วนตัวจบที่ความถี่ไหน (เสียงทุ้มจะ rolloff ต่ำ)</li>
+<li><strong>bandwidth</strong> — ความกว้างของการกระจายพลังงานรอบ centroid
+เสียงโทนเดียวแคบ ๆ = bandwidth ต่ำ · เสียงกระจายกว้าง = สูง</li>
+</ul>
+<div class="why">
+<span class="label">นี่คือทางลัดสู่ mission ของคุณ</span>
+อยากให้เสียงสัตว์ต่างชนิด “แยกกันได้” ใช่ไหม — <strong>คุณมีข้อมูลแยกแยะเพิ่มอยู่ในมือแล้ว (rolloff, bandwidth)
+เพียงแต่ยังไม่ได้เอามาโชว์หรือเอามาคิดระยะห่าง</strong> นี่คือของจริงที่แก้ได้ใน 5 บรรทัด
+</div>
+
+<h2>3 · ลองเล่น: ปั้นสเปกตรัม ดูตัวเลขขยับตามสูตรจริง</h2>
+<p>
+เลื่อนปุ่มเพื่อปั้น “ก้อนพลังงาน” ในสเปกตรัม แล้วดูสี่ค่าด้านล่าง — คำนวณด้วย<strong>สูตรเดียวกับในโค้ดคุณเป๊ะ ๆ</strong>
+เส้นแดงตั้ง = centroid, เส้นน้ำเงินตั้ง = rolloff
+</p>
+
+<div class="widget">
+  <canvas id="spec" width="720" height="220" aria-label="สเปกตรัมจำลอง"></canvas>
+  <div class="controls">
+    <div class="control-row">
+      <label for="pos">ตำแหน่งยอด</label>
+      <input type="range" id="pos" min="5" max="90" value="25">
+      <span class="val" id="posv">25</span>
+    </div>
+    <div class="control-row">
+      <label for="wid">ความกว้างยอด</label>
+      <input type="range" id="wid" min="2" max="40" value="6">
+      <span class="val" id="widv">6</span>
+    </div>
+    <div class="control-row">
+      <label for="noise">พื้นเสียงซ่า</label>
+      <input type="range" id="noise" min="0" max="120" value="0">
+      <span class="val" id="noisev">0</span>
+    </div>
+  </div>
+  <div id="readout" style="display:grid;grid-template-columns:1fr 1fr;gap:.4rem 1.2rem;margin-top:1rem;font-family:var(--mono);font-size:.9rem"></div>
+</div>
+
+<div class="try">
+<span class="label">ลองสังเกต</span>
+<strong>1.</strong> ลาก “ตำแหน่งยอด” ไปขวา → centroid (เส้นแดง) วิ่งตาม = เสียงสว่างขึ้น
+<br><strong>2.</strong> เพิ่ม “ความกว้างยอด” → bandwidth โตขึ้น (ยอดบานออก)
+<br><strong>3.</strong> เพิ่ม “พื้นเสียงซ่า” → flatness พุ่งเข้าใกล้ 1 และป้ายเปลี่ยนจาก <em>tonal</em> เป็น <em>noisy</em>
+<br><strong>4.</strong> ลองทำให้ centroid เท่ากันสองแบบ (ยอดแคบ vs ยอดกว้าง) — centroid เท่ากันแต่ bandwidth ต่างกัน! นั่นคือพลังแยกแยะที่ centroid ตัวเดียวให้ไม่ได้
+</div>
+
+<h2>4 · เช็กความเข้าใจ</h2>
+<div class="quiz" id="quiz">
+  <h3>ตอบจากความจำ</h3>
+
+  <div class="q" data-correct="2">
+    <p>centroid สูง ๆ บอกอะไรเกี่ยวกับเสียง?</p>
+    <button class="opt">เสียงนั้นดังกว่าปกติมากในตอนนั้น</button>
+    <button class="opt">เสียงนั้นยาวนานต่อเนื่องกว่าปกติ</button>
+    <button class="opt">เสียงนั้นสว่าง แหลม คมกว่าปกติ</button>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="q" data-correct="0">
+    <p>flatness เข้าใกล้ 1 หมายความว่าเสียงเป็นแบบใด?</p>
+    <button class="opt">เสียงซ่ากระจายทั่ว คล้ายเสียงรบกวน</button>
+    <button class="opt">เสียงโทนเดียวชัดเจน คล้ายเสียงนก</button>
+    <button class="opt">เสียงเงียบสนิทไม่มีพลังงานเลย</button>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="q" data-correct="1">
+    <p>ทำไม bandwidth ช่วยแยกเสียงที่ centroid เท่ากันได้?</p>
+    <button class="opt">เพราะมันวัดว่าเสียงนั้นดังขึ้นกี่เท่า</button>
+    <button class="opt">เพราะมันวัดว่าพลังงานกระจายกว้างแค่ไหน</button>
+    <button class="opt">เพราะมันวัดว่าเสียงยาวกี่มิลลิวินาที</button>
+    <div class="feedback"></div>
+  </div>
+</div>
+
+<h2>5 · ลงมือกับโค้ดจริง</h2>
+<ol>
+<li>เปิด Faunaform จับ signature ของเสียง <strong>ฮัมเป็นโทน</strong> (tonal) แล้วดู legend — ควรขึ้น “tonal” และ bright% ต่ำ</li>
+<li>จับ signature ของเสียง <strong>“ชชชช” (เสียงซ่า)</strong> — ควรขึ้น “noisy” และ bright% สูง</li>
+<li>เปิด <code>js/signatures.js</code> หา <code>renderLegend</code> — สังเกตว่ามันโชว์แค่ <code>centroid</code> กับ <code>flatness</code></li>
+<li><strong>งานจริง (5 บรรทัด):</strong> เพิ่มการโชว์ <code>rolloff</code> หรือ <code>bandwidth</code> ที่ <code>sig.features</code> มีอยู่แล้ว ลงใน legend
+เช่นต่อท้ายข้อความว่า <code>· wide ${Math.round(sig.features.bandwidth*100)}%</code> แล้วจับเสียงเทียบดูว่ามันช่วยแยกได้ขึ้นไหม</li>
+</ol>
+
+<div class="ask-teacher">
+<strong>ถามผมได้ทุกเมื่อ</strong> — เช่น “อยากให้ <code>barsDistance</code> เอา features พวกนี้มาคิดด้วย ไม่ใช่แค่เทียบแท่ง 96 อัน ต้องแก้ยังไง?”,
+“centroid ใน <code>%</code> นี่แปลงกลับเป็น Hz ได้ไหม?”, หรือ “flatness 0.35 เป็นค่าตัดที่ดีหรือยัง?”
+</div>
+
+<div class="lesson-footer">
+<p>
+📖 <strong>แหล่งอ่านต่อ:</strong>
+<a href="https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/getByteFrequencyData" target="_blank">MDN — getByteFrequencyData()</a>
+(ทบทวนว่าค่า 0–255 มาจากสเกลเดซิเบลยังไง ซึ่งกระทบทุก feature ข้างบน)
+</p>
+<p>
+<strong>บทต่อไป (ตัวอย่าง):</strong> เอาทุกอย่างมารวม — ออกแบบ “ระยะห่างของ signature” ที่รวมทั้งรูปร่างแท่ง
+และ features เข้าด้วยกัน เพื่อให้ตัวเลข <code>Δ</code> สะท้อนความต่างที่หูได้ยินจริง
+</p>
+</div>
+
+<script>
+// ===== Widget: ปั้นสเปกตรัม + คำนวณ features ด้วยสูตรเดียวกับ transforms.js =====
+const N = 96; // เท่ากับ SIG_BARS
+const cv = document.getElementById('spec'), ctx = cv.getContext('2d');
+const pos = document.getElementById('pos'), wid = document.getElementById('wid'), noise = document.getElementById('noise');
+const posv = document.getElementById('posv'), widv = document.getElementById('widv'), noisev = document.getElementById('noisev');
+const readout = document.getElementById('readout');
+
+function buildSpectrum() {
+  const p = +pos.value, w = +wid.value, nf = +noise.value;
+  const s = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const bump = 220 * Math.exp(-((i - p) * (i - p)) / (2 * w * w)); // ก้อน Gaussian
+    s[i] = Math.min(255, bump + nf);
+  }
+  return s;
+}
+
+// --- สูตรตรงจาก spectrumFeatures() ---
+function features(spectrum) {
+  const n = spectrum.length;
+  let total = 0, weighted = 0;
+  for (let i = 0; i < n; i++) { const v = spectrum[i] / 255; total += v; weighted += v * i; }
+  const centroid = total > 0 ? (weighted / total) / n : 0;
+
+  let cumulative = 0, rolloff = 0; const target = total * 0.85;
+  for (let i = 0; i < n; i++) { cumulative += spectrum[i] / 255; if (cumulative >= target) { rolloff = i / n; break; } }
+
+  const centroidBin = centroid * n; let variance = 0;
+  for (let i = 0; i < n; i++) variance += (spectrum[i] / 255) * (i - centroidBin) ** 2;
+  const bandwidth = total > 0 ? Math.sqrt(variance / total) / n : 0;
+
+  let logSum = 0, arithSum = 0; const eps = 1e-6;
+  for (let i = 0; i < n; i++) { const v = spectrum[i] / 255 + eps; logSum += Math.log(v); arithSum += v; }
+  const flatness = Math.exp(logSum / n) / (arithSum / n);
+
+  return { centroid, rolloff, bandwidth, flatness };
+}
+
+function render() {
+  posv.textContent = pos.value; widv.textContent = wid.value; noisev.textContent = noise.value;
+  const s = buildSpectrum(), f = features(s);
+  const W = cv.width, H = cv.height, base = H - 18;
+  ctx.clearRect(0, 0, W, H);
+  // แท่งสเปกตรัม
+  const bw = W / N;
+  for (let i = 0; i < N; i++) {
+    const h = (s[i] / 255) * (base - 6);
+    ctx.fillStyle = '#b8541a';
+    ctx.fillRect(i * bw, base - h, bw - 1, h);
+  }
+  // centroid (แดง) และ rolloff (น้ำเงิน)
+  const cx = f.centroid * W, rx = f.rolloff * W;
+  ctx.strokeStyle = '#d6342b'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, base); ctx.stroke();
+  ctx.strokeStyle = '#1a6fb8'; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(rx, 0); ctx.lineTo(rx, base); ctx.stroke(); ctx.setLineDash([]);
+
+  readout.innerHTML =
+    `<span><b style="color:#d6342b">centroid</b> ${Math.round(f.centroid*100)}% <span style="color:var(--ink-soft)">(bright)</span></span>` +
+    `<span><b>flatness</b> ${f.flatness.toFixed(2)} → ${f.flatness > 0.35 ? '<span style="color:#b8541a">noisy</span>' : '<span style="color:#3a9a6a">tonal</span>'}</span>` +
+    `<span><b style="color:#1a6fb8">rolloff</b> ${Math.round(f.rolloff*100)}%</span>` +
+    `<span><b>bandwidth</b> ${Math.round(f.bandwidth*100)}%</span>`;
+}
+[pos, wid, noise].forEach(el => el.addEventListener('input', render));
+render();
+
+// ===== แบบทดสอบ =====
+const fb = ['ถูกต้อง!', 'ยังไม่ใช่ — ลองเล่นวิดเจ็ตด้านบนแล้วดูว่าค่าไหนขยับ'];
+document.querySelectorAll('#quiz .q').forEach(q => {
+  const correct = +q.dataset.correct;
+  const opts = [...q.querySelectorAll('.opt')];
+  const f = q.querySelector('.feedback');
+  opts.forEach((opt, i) => opt.addEventListener('click', () => {
+    opts.forEach(o => o.classList.remove('correct', 'wrong'));
+    if (i === correct) { opt.classList.add('correct'); f.textContent = '✓ ' + fb[0]; }
+    else { opt.classList.add('wrong'); opts[correct].classList.add('correct'); f.textContent = '✗ ' + fb[1]; }
+  }));
+});
+</script>
+</body>
+</html>

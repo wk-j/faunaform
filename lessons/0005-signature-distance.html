@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บทที่ 5 · ระยะห่างของ Signature — Faunaform</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<p class="course-tag">Faunaform · เรียนรู้เรื่องเสียง</p>
+<p class="lesson-no">บทเรียนที่ 0005 · ต่อจาก <a href="0004-spectral-features.html">บทที่ 4</a></p>
+<h1>บทรวบยอด: ทำให้ตัวเลข <code>Δ</code> ตรงกับสิ่งที่หูได้ยิน</h1>
+
+<p>
+ถึงจุดที่ทุกอย่างมาบรรจบ คุณรู้แล้วว่า signature คือ <strong>สเปกตรัมเฉลี่ย</strong> (บท 3)
+ที่ย่อเป็น <strong>96 แท่ง</strong> และ <strong>4 features</strong> (บท 4) ตอนนี้คำถามสุดท้ายของ mission:
+<em>เราจะวัด “ความต่าง” ของสองเสียงให้ตรงกับหูได้ยังไง?</em> นั่นคือหัวใจของการทำให้เสียงสัตว์
+ต่างชนิด “ดูแยกกันได้”
+</p>
+
+<h2>1 · วันนี้ Faunaform วัดความต่างยังไง</h2>
+<p>
+ฟังก์ชัน <code>barsDistance(a, b)</code> ใน <code>transforms.js</code> ทำสิ่งเดียว:
+หาค่า <strong>เฉลี่ยของผลต่างสัมบูรณ์</strong> ของแท่งทั้ง 96 อัน
+</p>
+<pre><code>sum += Math.abs(a[i] - b[i]);
+return sum / n;   // 0 = เหมือนกันเป๊ะ, ยิ่งมาก = ยิ่งต่าง</code></pre>
+<p>
+diff readout ที่โชว์ <code>Δ last two 23%</code> ก็มาจากตรงนี้ มันดีและเข้าใจง่าย
+แต่มันมอง <strong>รูปร่างแท่งอย่างเดียว</strong> — ละเลย features ที่คุณคำนวณไว้แล้ว
+</p>
+
+<div class="why">
+<span class="label">ช่องโหว่ที่ตรงกับ mission พอดี</span>
+สองเสียงอาจมีรูปแท่งคล้ายกัน (barsDistance ต่ำ) แต่ <em>ความรู้สึก</em> ต่างกันชัด —
+เช่นตัวหนึ่งกระจายกว้าง (bandwidth สูง) อีกตัวเป็นโทนแคบ
+ถ้าเอา features มาร่วมคิดระยะ <strong>signature จะแยกเสียงสัตว์ได้ตรงหูขึ้น</strong>
+</div>
+
+<h2>2 · ลองเล่น: เทียบสองเสียง แล้วปรับ “สูตรระยะห่าง”</h2>
+<p>
+ปั้นสเปกตรัม A (ส้ม) กับ B (ฟ้า) แล้วดูระยะห่างสามแบบ:
+<strong>bars</strong> (แบบที่โค้ดใช้ตอนนี้), <strong>features</strong> (จาก 4 ตัวเลข), และ
+<strong>blended</strong> (ผสมกันตามปุ่มน้ำหนัก) ลองหาคู่ที่ bars บอกว่า “เหมือน” แต่ blended บอกว่า “ต่าง”
+</p>
+
+<div class="widget">
+  <canvas id="cmp" width="720" height="220" aria-label="เทียบสเปกตรัมสองเสียง"></canvas>
+  <div class="controls">
+    <div class="control-row">
+      <label for="pa" style="color:#b8541a">A · ตำแหน่ง</label>
+      <input type="range" id="pa" min="3" max="60" value="18">
+      <span class="val" id="pav">18</span>
+    </div>
+    <div class="control-row">
+      <label for="wa" style="color:#b8541a">A · ความกว้าง</label>
+      <input type="range" id="wa" min="2" max="30" value="5">
+      <span class="val" id="wav">5</span>
+    </div>
+    <div class="control-row">
+      <label for="pb" style="color:#1a6fb8">B · ตำแหน่ง</label>
+      <input type="range" id="pb" min="3" max="60" value="18">
+      <span class="val" id="pbv">18</span>
+    </div>
+    <div class="control-row">
+      <label for="wb" style="color:#1a6fb8">B · ความกว้าง</label>
+      <input type="range" id="wb" min="2" max="30" value="18">
+      <span class="val" id="wbv">18</span>
+    </div>
+    <div class="control-row">
+      <label for="wt">น้ำหนัก features</label>
+      <input type="range" id="wt" min="0" max="100" value="50">
+      <span class="val" id="wtv">50%</span>
+    </div>
+  </div>
+  <div id="dist" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.5rem;margin-top:1rem;font-family:var(--mono);font-size:.95rem;text-align:center"></div>
+</div>
+
+<div class="try">
+<span class="label">ลองสังเกต</span>
+ตั้ง A กับ B ให้ <strong>ตำแหน่งเท่ากัน</strong> แต่ <strong>ความกว้างต่างกันมาก</strong> (A แคบ, B กว้าง):
+<br>• <strong>bars</strong> distance จะค่อนข้างต่ำ (รูปคล้ายกันหลังนอร์มัลไลซ์)
+<br>• แต่พอดันน้ำหนัก features ขึ้น <strong>blended</strong> distance จะพุ่ง — เพราะ bandwidth ต่างกันชัด
+<br>นี่คือหลักฐานว่า “เอา features มาร่วม” ทำให้ระยะห่างตรงกับความรู้สึกจริงขึ้น
+</div>
+
+<h2>3 · เช็กความเข้าใจ</h2>
+<div class="quiz" id="quiz">
+  <h3>ตอบจากความจำ</h3>
+
+  <div class="q" data-correct="1">
+    <p><code>barsDistance</code> คืนค่า 0 เมื่อใด?</p>
+    <button class="opt">เมื่อทั้งสองเสียงเงียบสนิทพร้อมกันพอดี</button>
+    <button class="opt">เมื่อรูปร่างแท่งของสองเสียงเหมือนกันเป๊ะ</button>
+    <button class="opt">เมื่อสองเสียงดังเท่ากันที่ทุกความถี่พอดี</button>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="q" data-correct="2">
+    <p>ทำไม blended distance อาจดีกว่า bars อย่างเดียว?</p>
+    <button class="opt">เพราะมันคำนวณเร็วกว่าและกินแรงเครื่องน้อย</button>
+    <button class="opt">เพราะมันทำให้ค่าตัวเลขออกมาสูงขึ้นเสมอ</button>
+    <button class="opt">เพราะมันจับความต่างที่รูปแท่งอย่างเดียวพลาด</button>
+    <div class="feedback"></div>
+  </div>
+
+  <div class="q" data-correct="0">
+    <p>ก่อนเทียบ bars โค้ด normalize แต่ละ signature ตามยอดตัวเอง เพื่ออะไร?</p>
+    <button class="opt">เทียบรูปร่างของเสียง ไม่ใช่ว่าดังแค่ไหน</button>
+    <button class="opt">เทียบความดังของเสียง ไม่ใช่รูปร่างมัน</button>
+    <button class="opt">เทียบความยาวของเสียง ไม่ใช่รูปร่างมัน</button>
+    <div class="feedback"></div>
+  </div>
+</div>
+
+<h2>4 · ลงมือกับโค้ดจริง — ของจริงตาม mission</h2>
+<p>
+นี่คืองานที่เอาความรู้ทั้ง 5 บทมาแก้โค้ด Faunaform ให้แยกเสียงสัตว์คมขึ้นจริง:
+</p>
+<ol>
+<li>เปิด <code>js/transforms.js</code> เขียนฟังก์ชันใหม่ <code>featureDistance(fa, fb)</code> ที่เฉลี่ยผลต่างสัมบูรณ์ของ
+<code>centroid</code>, <code>bandwidth</code>, <code>flatness</code>, <code>rolloff</code></li>
+<li>ทำ <code>signatureDistance(sigA, sigB)</code> ที่ผสม:
+<code>0.6 * barsDistance(sigA.bars, sigB.bars) + 0.4 * featureDistance(sigA.features, sigB.features)</code></li>
+<li>ใน <code>signatures.js</code> เปลี่ยน <code>updateDiff</code> ให้เรียก <code>signatureDistance</code> แทน <code>barsDistance</code> ตรง ๆ
+(ตอนนี้มันส่งแค่ <code>.bars</code> — ส่งทั้ง object เข้าไปแทน)</li>
+<li>มี unit test อยู่ใน <code>test/</code> แล้ว — เพิ่มเทสต์ว่า <code>featureDistance</code> ของ object เดียวกัน = 0 และสมมาตร</li>
+<li>จับเสียงจริงเทียบดูว่าค่า <code>Δ</code> ตอนนี้ตรงกับหูคุณขึ้นไหม ปรับน้ำหนัก 0.6/0.4 ตามชอบ</li>
+</ol>
+<div class="note">
+<span class="label">อยากให้ผมช่วยลงมือ</span>
+ถ้าพร้อมเขียนของจริง บอกผมว่า “ช่วยทำ <code>signatureDistance</code> ให้หน่อย” — ผมจะเขียนโค้ด + เทสต์
+ในโปรเจกต์ให้ พร้อมรันเทสต์ให้เห็นว่าผ่าน (นี่คือจุดที่ “เรียน” กลายเป็น “ส่งของ”)
+</div>
+
+<div class="ask-teacher">
+<strong>ถามผมได้ทุกเมื่อ</strong> — เช่น “น้ำหนัก 0.6/0.4 ควรเป็นเท่าไรดี?”,
+“อยากให้ระยะห่างคิดเรื่องลีลาเวลา (จากบท 3) ด้วย ต้องเก็บข้อมูลเพิ่มยังไง?”,
+หรือ “features บางตัวควรถ่วงน้ำหนักมากกว่าตัวอื่นไหม?”
+</div>
+
+<div class="lesson-footer">
+<p>
+🎓 <strong>คุณเรียนครบแกนหลักแล้ว:</strong> คลื่น → FFT → spectrogram → features → distance
+ทั้งหมดผูกกับโค้ด Faunaform จริง
+</p>
+<p>
+<strong>ทิศทางต่อไปที่เป็นไปได้:</strong>
+(ก) เพิ่มโหมด <strong>spectrogram</strong> เป็น graph form ใหม่ ·
+(ข) ใส่ <strong>ลีลาเวลา</strong> เข้าไปใน signature เพื่อแยกเสียงหวีดกับเสียงรัว ·
+(ค) เจาะ <strong>สเกลเดซิเบล</strong> (<code>minDecibels</code>/<code>maxDecibels</code>) ว่ากระทบ feature ยังไง —
+บอกผมว่าอยากไปทางไหนต่อ
+</p>
+</div>
+
+<script>
+// ===== Widget: เทียบสองสเปกตรัม + ระยะห่างสามแบบ =====
+const N = 64;
+const cv = document.getElementById('cmp'), ctx = cv.getContext('2d');
+const els = ['pa','wa','pb','wb','wt'].map(id => document.getElementById(id));
+const vals = ['pav','wav','pbv','wbv','wtv'].map(id => document.getElementById(id));
+const dist = document.getElementById('dist');
+
+function gauss(pos, wid) {
+  const s = new Float32Array(N);
+  for (let i = 0; i < N; i++) s[i] = 220 * Math.exp(-((i - pos) ** 2) / (2 * wid * wid));
+  return s;
+}
+// แท่งแบบ spectrumToBars: นอร์มัลไลซ์ตามยอดตัวเอง
+function toBars(s) {
+  let max = 1e-6; const b = new Float32Array(N);
+  for (let i = 0; i < N; i++) { b[i] = s[i] / 255; if (b[i] > max) max = b[i]; }
+  for (let i = 0; i < N; i++) b[i] /= max;
+  return b;
+}
+function barsDistance(a, b) { let s = 0; for (let i = 0; i < N; i++) s += Math.abs(a[i] - b[i]); return s / N; }
+function features(s) {
+  let total = 0, weighted = 0;
+  for (let i = 0; i < N; i++) { const v = s[i] / 255; total += v; weighted += v * i; }
+  const centroid = total > 0 ? (weighted / total) / N : 0;
+  let cum = 0, rolloff = 0; const tgt = total * 0.85;
+  for (let i = 0; i < N; i++) { cum += s[i] / 255; if (cum >= tgt) { rolloff = i / N; break; } }
+  const cb = centroid * N; let varr = 0;
+  for (let i = 0; i < N; i++) varr += (s[i] / 255) * (i - cb) ** 2;
+  const bandwidth = total > 0 ? Math.sqrt(varr / total) / N : 0;
+  let logS = 0, ariS = 0; const eps = 1e-6;
+  for (let i = 0; i < N; i++) { const v = s[i] / 255 + eps; logS += Math.log(v); ariS += v; }
+  const flatness = Math.exp(logS / N) / (ariS / N);
+  return { centroid, rolloff, bandwidth, flatness };
+}
+function featureDistance(a, b) {
+  return (Math.abs(a.centroid - b.centroid) + Math.abs(a.bandwidth - b.bandwidth) +
+          Math.abs(a.flatness - b.flatness) + Math.abs(a.rolloff - b.rolloff)) / 4;
+}
+
+function render() {
+  els.forEach((el, i) => vals[i].textContent = el.value + (i === 4 ? '%' : ''));
+  const A = gauss(+els[0].value, +els[1].value);
+  const B = gauss(+els[2].value, +els[3].value);
+  const w = +els[4].value / 100;
+  const W = cv.width, H = cv.height, base = H - 14, bw = W / N;
+  ctx.clearRect(0, 0, W, H);
+  // วาด A (ส้ม) และ B (ฟ้า) ซ้อนโปร่งใส
+  for (let i = 0; i < N; i++) {
+    const ha = (A[i] / 255) * (base - 6), hb = (B[i] / 255) * (base - 6);
+    ctx.fillStyle = 'rgba(184,84,26,0.65)'; ctx.fillRect(i * bw, base - ha, bw - 1, ha);
+    ctx.fillStyle = 'rgba(26,111,184,0.55)'; ctx.fillRect(i * bw, base - hb, bw - 1, hb);
+  }
+  const bd = barsDistance(toBars(A), toBars(B));
+  const fd = featureDistance(features(A), features(B));
+  const blend = (1 - w) * bd + w * fd;
+  const cell = (label, v, hi) =>
+    `<span style="${hi ? 'background:var(--accent-soft);border-radius:6px;padding:.3rem' : 'padding:.3rem'}">` +
+    `<span style="color:var(--ink-soft);font-size:.8rem">${label}</span><br><b style="font-size:1.2rem">${Math.round(v*100)}%</b></span>`;
+  dist.innerHTML = cell('bars (ตอนนี้)', bd, false) + cell('features', fd, false) + cell('blended', blend, true);
+}
+els.forEach(el => el.addEventListener('input', render));
+render();
+
+// ===== แบบทดสอบ =====
+const fb = ['ถูกต้อง!', 'ยังไม่ใช่ — ลองเล่นวิดเจ็ตเทียบสองเสียงด้านบน'];
+document.querySelectorAll('#quiz .q').forEach(q => {
+  const correct = +q.dataset.correct;
+  const opts = [...q.querySelectorAll('.opt')];
+  const f = q.querySelector('.feedback');
+  opts.forEach((opt, i) => opt.addEventListener('click', () => {
+    opts.forEach(o => o.classList.remove('correct', 'wrong'));
+    if (i === correct) { opt.classList.add('correct'); f.textContent = '✓ ' + fb[0]; }
+    else { opt.classList.add('wrong'); opts[correct].classList.add('correct'); f.textContent = '✗ ' + fb[1]; }
+  }));
+});
+</script>
+</body>
+</html>

@@ -11,6 +11,7 @@ import { SIG_BARS } from "./state.js";
 import { createSpectrumForm } from "./render3d/spectrum.js";
 import { createWaveformForm } from "./render3d/waveform.js";
 import { createRadialForm } from "./render3d/radial.js";
+import { createSpectrogramForm } from "./render3d/spectrogram.js";
 import { createPlaceholderForm } from "./render3d/placeholder.js";
 import { setCameraRotateImpl } from "./camera.js";
 
@@ -99,6 +100,10 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
   radial.mesh.visible = false;
   scene.add(radial.mesh);
 
+  const spectrogram = createSpectrogramForm();
+  spectrogram.mesh.visible = false;
+  scene.add(spectrogram.mesh);
+
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
   // Bloom disabled: it's a dark-scene effect that washes out a light background.
@@ -135,14 +140,19 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
     camera.position.copy(controls.target).add(orbitOffset);
   });
 
-  // Swap the visible form. Spectrum, waveform, and radial are live 3D forms; only
-  // signatures still shows the shared placeholder. Camera and OrbitControls state
-  // are untouched, so the view is preserved across switches.
+  // Swap the visible form. Spectrum, waveform, radial, and spectrogram are live
+  // 3D forms; only signatures still shows the shared placeholder. Camera and
+  // OrbitControls state are untouched, so the view is preserved across switches.
   function setActiveForm(key) {
-    placeholderActive = key !== "spectrum" && key !== "waveform" && key !== "radial";
+    placeholderActive =
+      key !== "spectrum" &&
+      key !== "waveform" &&
+      key !== "radial" &&
+      key !== "spectrogram";
     spectrum.mesh.visible = key === "spectrum";
     waveform.mesh.visible = key === "waveform";
     radial.mesh.visible = key === "radial";
+    spectrogram.mesh.visible = key === "spectrogram";
     placeholder.group.visible = placeholderActive;
   }
 
@@ -168,6 +178,10 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
     radial.update(bars);
   }
 
+  function updateSpectrogram(frequencyData, gain) {
+    spectrogram.update(frequencyData, gain);
+  }
+
   function renderFrame() {
     const elapsed = clock.getElapsedTime();
     if (placeholderActive) placeholder.update(elapsed);
@@ -186,6 +200,7 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
     updateSpectrum,
     updateWaveform,
     updateRadial,
+    updateSpectrogram,
     setActiveForm,
     renderFrame,
     dispose() {
@@ -196,6 +211,7 @@ export function createRender3d(canvas, { onFirstFrame } = {}) {
       spectrum.mesh.material.dispose();
       waveform.dispose();
       radial.dispose();
+      spectrogram.dispose();
       placeholder.dispose();
       composer.dispose();
       renderer.dispose();
